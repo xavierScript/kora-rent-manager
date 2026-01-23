@@ -1,5 +1,10 @@
 use std::sync::Arc;
 use std::str::FromStr;
+use std::collections::HashMap;
+use std::fs::{self, File};
+use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
+use serde::{Deserialize, Serialize};
 
 use crate::RentManagerCommands;
 use kora_lib::{
@@ -22,6 +27,10 @@ use solana_sdk::{
 use solana_account_decoder::UiAccountData;
 use base64::{Engine as _, engine::general_purpose};
 
+// --- Constants ---
+const GRACE_PERIOD_SECONDS: u64 = 24 * 60 * 60; // 24 Hours
+const TRACKER_FILE: &str = "grace_period.json";
+
 // --- Data Structures ---
 
 struct TokenAccountInfo {
@@ -32,6 +41,29 @@ struct TokenAccountInfo {
     program_id: Pubkey,
 }
 
+// Simple DB for tracking timestamps
+#[derive(Serialize, Deserialize, Default)]
+struct GracePeriodTracker {
+    // Map of Account Pubkey -> Unix Timestamp (First Seen Empty)
+    pending_closures: HashMap<String, u64>,
+}
+
+impl GracePeriodTracker {
+    fn load() -> Self {
+        if Path::new(TRACKER_FILE).exists() {
+            let data = fs::read_to_string(TRACKER_FILE).unwrap_or_default();
+            serde_json::from_str(&data).unwrap_or_default()
+        } else {
+            Self::default()
+        }
+    }
+
+    fn save(&self) {
+        let json = serde_json::to_string_pretty(&self).unwrap();
+        let _ = fs::write(TRACKER_FILE, json); // Ignore errors for simplicity in this demo
+    }
+}
+
 // --- Main Handler ---
 
 pub async fn handle_rent_manager(
@@ -39,7 +71,6 @@ pub async fn handle_rent_manager(
     rpc_client: Arc<RpcClient>,
 ) -> Result<(), KoraError> {
     // 1. Unpack arguments
-    // We unpack 'all' from Scan, and default it to false for Reclaim
     let (rpc_args, execute, force_all, is_scan_only, show_all) = match command {
         RentManagerCommands::Scan { rpc_args, all } => (rpc_args, false, false, true, all),
         RentManagerCommands::Reclaim { rpc_args, execute, force_all } => (rpc_args, execute, force_all, false, false),
@@ -56,16 +87,26 @@ pub async fn handle_rent_manager(
 
     let signer_pool = get_signer_pool()?;
     
-    // 3. Route to logic
+    // 3. Load Tracker
+    let mut tracker = GracePeriodTracker::load();
+    println!("Loaded tracker with {} pending accounts.", tracker.pending_closures.len());
+
+    // 4. Route to logic
     if is_scan_only {
         println!("Scanning for accounts...");
-        scan_accounts(rpc_client, &signer_pool, show_all).await
+        scan_accounts(rpc_client, &signer_pool, show_all, &mut tracker).await?;
     } else {
         if !execute {
             println!("Running in DRY-RUN mode. Use --execute to perform reclamation.");
         }
-        reclaim_rent(rpc_client, &signer_pool, execute, force_all).await
+        reclaim_rent(rpc_client, &signer_pool, execute, force_all, &mut tracker).await?;
     }
+
+    // 5. Save Tracker updates
+    tracker.save();
+    println!("Updated tracker saved.");
+
+    Ok(())
 }
 
 // --- Logic Implementation ---
@@ -73,10 +114,12 @@ pub async fn handle_rent_manager(
 async fn scan_accounts(
     rpc_client: Arc<RpcClient>,
     signer_pool: &SignerPool,
-    show_all: bool, // [NEW] Flag to show funded accounts
+    show_all: bool,
+    tracker: &mut GracePeriodTracker,
 ) -> Result<(), KoraError> {
     let signers_info = signer_pool.get_signers_info();
     let (allowed_tokens, is_all_allowed) = get_allowed_tokens()?;
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
 
     let mut total_rent = 0;
     let mut total_count = 0;
@@ -86,44 +129,59 @@ async fn scan_accounts(
         println!("\nSigner: {} ({})", signer_info.name, signer_pubkey);
 
         let accounts = fetch_all_token_accounts(&rpc_client, &signer_pubkey).await?;
-        let mut found_reclaimable = 0;
 
         for acc in accounts {
+            let pubkey_str = acc.pubkey.to_string();
             let is_allowed = is_all_allowed || allowed_tokens.contains(&acc.mint);
             let is_empty = acc.amount == 0;
 
-            // Display logic: Show if empty OR if user passed --all
-            if is_empty || show_all {
-                let status = if !is_empty {
-                    "FUNDED (Ignored)" // Status for accounts with money
-                } else if is_allowed {
-                    "KEEP (Allowed)"
+            if is_empty {
+                // Check Grace Period
+                let (status, is_safe_to_close) = if let Some(&timestamp) = tracker.pending_closures.get(&pubkey_str) {
+                    let age = now.saturating_sub(timestamp);
+                    if age >= GRACE_PERIOD_SECONDS {
+                        ("RECLAIMABLE (Safe)", true)
+                    } else {
+                        let hours_left = (GRACE_PERIOD_SECONDS - age) / 3600;
+                        // Use a dynamic string for the status
+                        // Note: println! handles the formatting, we pass the result.
+                        // For simplicity here, we map to a static string, but let's print detailed status
+                        ("GRACE PERIOD", false) 
+                    }
                 } else {
-                    "RECLAIMABLE"
+                    // New empty account! Add to tracker
+                    tracker.pending_closures.insert(pubkey_str.clone(), now);
+                    ("PENDING (Marked)", false)
                 };
-                
+
+                // Override status if allowed token
+                let final_status = if is_allowed { "KEEP (Allowed)" } else { status };
+
                 println!(
-                    "  - Account: {} | Mint: {} | Balance: {} | Rent: {} | Status: {}",
-                    acc.pubkey, acc.mint, acc.amount, acc.lamports, status
+                    "  - Account: {} | Mint: {} | Balance: 0 | Status: {}",
+                    acc.pubkey, acc.mint, final_status
                 );
 
-                // Only count towards total if it is actually reclaimable
-                if is_empty && !is_allowed {
+                if !is_allowed && is_safe_to_close {
                     total_rent += acc.lamports;
                     total_count += 1;
-                    found_reclaimable += 1;
+                }
+
+            } else {
+                // Account is FUNDED. 
+                // CRITICAL: Remove from tracker if it was there (it's safe now!)
+                if tracker.pending_closures.remove(&pubkey_str).is_some() {
+                     println!("  - Account: {} | Status: FUNDED (Removed from Pending list)", acc.pubkey);
+                } else if show_all {
+                     println!("  - Account: {} | Balance: {} | Status: FUNDED", acc.pubkey, acc.amount);
                 }
             }
-        }
-        
-        if found_reclaimable == 0 {
-            println!("  No reclaimable accounts found.");
         }
     }
 
     println!("\nSummary:");
-    println!("Total Reclaimable Accounts: {}", total_count);
-    println!("Total Potential Rent Reclaim: {} SOL", lamports_to_sol(total_rent));
+    println!("Total Ready to Reclaim: {}", total_count);
+    println!("Total Potential Rent: {} SOL", lamports_to_sol(total_rent));
 
     Ok(())
 }
@@ -133,9 +191,11 @@ async fn reclaim_rent(
     signer_pool: &SignerPool,
     execute: bool,
     force_all: bool,
+    tracker: &mut GracePeriodTracker,
 ) -> Result<(), KoraError> {
     let signers_info = signer_pool.get_signers_info();
     let (allowed_tokens, is_all_allowed) = get_allowed_tokens()?;
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
 
     let mut reclaimed_rent = 0;
     let mut reclaimed_count = 0;
@@ -149,13 +209,33 @@ async fn reclaim_rent(
         let accounts = fetch_all_token_accounts(&rpc_client, &signer_pubkey).await?;
 
         for acc in accounts {
-            // Reclaim strictly ignores funded accounts regardless of flags for safety
-            if acc.amount != 0 { continue; }
+            let pubkey_str = acc.pubkey.to_string();
 
+            // 1. Safety Filter: Ignore Funded
+            if acc.amount != 0 { 
+                // Auto-cleanup tracker
+                tracker.pending_closures.remove(&pubkey_str);
+                continue; 
+            }
+
+            // 2. Whitelist Filter
             let is_allowed = is_all_allowed || allowed_tokens.contains(&acc.mint);
-            let should_close = force_all || !is_allowed;
+            if is_allowed && !force_all {
+                println!("  - Skipping: {} (Allowed Token)", acc.pubkey);
+                continue;
+            }
 
-            if should_close {
+            // 3. Grace Period Filter
+            let is_safe_time = if let Some(&timestamp) = tracker.pending_closures.get(&pubkey_str) {
+                (now.saturating_sub(timestamp)) >= GRACE_PERIOD_SECONDS
+            } else {
+                // If we've never seen it, mark it now and SKIP closing
+                tracker.pending_closures.insert(pubkey_str.clone(), now);
+                println!("  - Skipping: {} (New Detection - Grace Period Started)", acc.pubkey);
+                false
+            };
+
+            if is_safe_time {
                 println!("  - Closing Account: {} (Rent: {})", acc.pubkey, acc.lamports);
 
                 if execute {
@@ -164,6 +244,8 @@ async fn reclaim_rent(
                             println!("    ✅ Closed. Sig: {}", sig);
                             reclaimed_rent += acc.lamports;
                             reclaimed_count += 1;
+                            // Remove from tracker after closing
+                            tracker.pending_closures.remove(&pubkey_str);
                         }
                         Err(e) => println!("    ❌ Failed: {}", e),
                     }
@@ -171,8 +253,17 @@ async fn reclaim_rent(
                     reclaimed_rent += acc.lamports;
                     reclaimed_count += 1;
                 }
-            } else {
-                println!("  - Skipping: {} (Allowed Token)", acc.pubkey);
+            } else if !is_allowed { 
+                // It was empty, not allowed, but NOT safe time yet.
+                 // We already printed the "New Detection" msg above if it was new.
+                 // If it was existing but young:
+                 if let Some(&timestamp) = tracker.pending_closures.get(&pubkey_str) {
+                     let age = now.saturating_sub(timestamp);
+                     if age < GRACE_PERIOD_SECONDS {
+                         let hours = (GRACE_PERIOD_SECONDS - age) / 3600;
+                         println!("  - Skipping: {} (In Grace Period: {}h left)", acc.pubkey, hours);
+                     }
+                 }
             }
         }
     }

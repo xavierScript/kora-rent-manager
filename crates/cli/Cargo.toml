@@ -40,3 +40,4 @@ solana-account-decoder = "3.1.7"
 base64.workspace = true
 ratatui = "0.30.0"
 crossterm = "0.29.0"
+serde = { workspace = true, features = ["derive"] }

@@ -2852,6 +2852,7 @@ dependencies = [
  "kora-lib",
  "log",
  "ratatui",
+ "serde",
  "serde_json",
  "solana-account-decoder",
  "solana-client",
