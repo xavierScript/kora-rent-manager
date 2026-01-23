@@ -101,14 +101,14 @@ struct AuditRecord {
 // --- TUI Types ---
 
 enum UiEvent {
-    Log(String, Color), 
+    Log(String, String, Color), // (Account, Details, Color)
     StatsUpdate { reclaimed: f64, count: u64 },
     Status(String),
     TaskComplete,
 }
 
 struct AppState {
-    logs: Vec<(String, Color)>, 
+    logs: Vec<(String, String, Color)>, 
     total_reclaimed_sol: f64,
     reclaimed_count: u64,
     status_msg: String,
@@ -116,7 +116,6 @@ struct AppState {
     is_working: bool,
 }
 
-// Helper enum to define what the background worker should do
 enum OperationMode {
     Scan { all: bool },
     Reclaim { execute: bool, force_all: bool },
@@ -130,7 +129,6 @@ pub async fn handle_rent_manager(
     rpc_client: Arc<RpcClient>,
 ) -> Result<(), KoraError> {
     
-    // 1. Initialize Signers
     let rpc_args = match &command {
         RentManagerCommands::Scan { rpc_args, .. } => rpc_args,
         RentManagerCommands::Reclaim { rpc_args, .. } => rpc_args,
@@ -146,13 +144,10 @@ pub async fn handle_rent_manager(
         ));
     }
 
-    // [FIX] get_signer_pool returns Arc<SignerPool>, so we don't need Arc::new() again
     let signer_pool = get_signer_pool()?;
 
-    // 2. Dispatch Command
     match command {
         RentManagerCommands::Stats { .. } => {
-            // Stats prints to stdout (better for copying data)
             show_stats(rpc_client, &signer_pool).await?;
         },
         RentManagerCommands::Scan { all, .. } => {
@@ -176,21 +171,17 @@ async fn run_tui_task(
     signer_pool: Arc<SignerPool>, 
     mode: OperationMode,
 ) -> Result<(), KoraError> {
-    // 1. Setup Terminal
     enable_raw_mode().unwrap();
     let mut stdout = std::io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture).unwrap();
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend).unwrap();
 
-    // 2. Channels for communication
     let (tx, mut rx) = mpsc::unbounded_channel();
     
-    // 3. Clone for background thread
     let rpc_bg = rpc_client.clone();
     let pool_bg = signer_pool.clone();
     
-    // 4. Spawn the Worker logic based on Mode
     tokio::spawn(async move {
         let mut tracker = GracePeriodTracker::load();
 
@@ -198,7 +189,7 @@ async fn run_tui_task(
             OperationMode::Scan { all } => {
                 let _ = tx.send(UiEvent::Status("🔍 Scanning...".to_string()));
                 if let Err(e) = scan_accounts(rpc_bg, &pool_bg, all, &mut tracker, Some(tx.clone())).await {
-                    let _ = tx.send(UiEvent::Log(format!("Error: {}", e), Color::Red));
+                    let _ = tx.send(UiEvent::Log("System".to_string(), format!("Error: {}", e), Color::Red));
                 }
                 let _ = tx.send(UiEvent::Status("✅ Scan Complete. Press 'q' to quit.".to_string()));
                 let _ = tx.send(UiEvent::TaskComplete);
@@ -208,9 +199,8 @@ async fn run_tui_task(
                 let _ = tx.send(UiEvent::Status(format!("⚡ {}...", mode_str)));
                 
                 if let Err(e) = reclaim_rent(rpc_bg, &pool_bg, execute, force_all, &mut tracker, Some(tx.clone())).await {
-                    let _ = tx.send(UiEvent::Log(format!("Error: {}", e), Color::Red));
+                    let _ = tx.send(UiEvent::Log("System".to_string(), format!("Error: {}", e), Color::Red));
                 }
-                // Save tracker only on Reclaim
                 tracker.save();
                 let _ = tx.send(UiEvent::Status("✅ Task Complete. Press 'q' to quit.".to_string()));
                 let _ = tx.send(UiEvent::TaskComplete);
@@ -223,7 +213,6 @@ async fn run_tui_task(
 
                 loop {
                     let _ = tx.send(UiEvent::Status("🚀 Daemon Cycle Starting...".to_string()));
-                    // Reload tracker every cycle to pick up manual edits
                     let mut daemon_tracker = GracePeriodTracker::load();
                     
                     match reclaim_rent(rpc_bg.clone(), &pool_bg, true, force_all, &mut daemon_tracker, Some(tx.clone())).await {
@@ -232,7 +221,7 @@ async fn run_tui_task(
                             let _ = tx.send(UiEvent::Status(format!("💤 Sleeping for {}", interval)));
                         },
                         Err(e) => {
-                            let _ = tx.send(UiEvent::Log(format!("⚠️ Job Failed: {}", e), Color::Red));
+                            let _ = tx.send(UiEvent::Log("System".to_string(), format!("⚠️ Job Failed: {}", e), Color::Red));
                             let _ = tx.send(UiEvent::Status("⚠️ Error. Retrying...".to_string()));
                         }
                     }
@@ -242,7 +231,6 @@ async fn run_tui_task(
         }
     });
 
-    // 5. App State & Event Loop
     let mut app = AppState {
         logs: vec![],
         total_reclaimed_sol: 0.0,
@@ -257,9 +245,9 @@ async fn run_tui_task(
 
         if let Ok(event) = rx.try_recv() {
             match event {
-                UiEvent::Log(msg, color) => {
+                UiEvent::Log(acc, details, color) => {
                     if app.logs.len() > 50 { app.logs.remove(0); }
-                    app.logs.push((msg, color));
+                    app.logs.push((acc, details, color));
                 },
                 UiEvent::StatsUpdate { reclaimed, count } => {
                     app.total_reclaimed_sol += reclaimed;
@@ -270,12 +258,10 @@ async fn run_tui_task(
             }
         }
 
-        // Only spin if working
         if app.is_working {
             app.spinner_idx = (app.spinner_idx + 1) % 4;
         }
 
-        // Input
         if event::poll(Duration::from_millis(100)).unwrap() {
             if let Event::Key(key) = event::read().unwrap() {
                 if key.code == KeyCode::Char('q') {
@@ -285,7 +271,6 @@ async fn run_tui_task(
         }
     }
 
-    // 6. Cleanup
     disable_raw_mode().unwrap();
     execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
     terminal.show_cursor().unwrap();
@@ -306,7 +291,7 @@ fn ui(f: &mut Frame, app: &AppState) {
 
     // 1. Header
     let spinner = if app.is_working { ["|", "/", "-", "\\"][app.spinner_idx] } else { "✓" };
-    let header_text = format!(" KORA RENT MANAGER v2.0 | {} ", spinner);
+    let header_text = format!(" KORA RENT MANAGER v1.0 | {} ", spinner);
     let header = Paragraph::new(header_text)
         .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
         .alignment(Alignment::Center)
@@ -336,24 +321,22 @@ fn ui(f: &mut Frame, app: &AppState) {
     f.render_widget(gauge, stats_chunks[1]);
 
     // 3. Table
-    let header_cells = ["Timestamp", "Details", "Status"]
+    let header_cells = ["Account", "Details"]
         .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(Color::Cyan)));
+        .map(|h| Cell::from(*h).style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)));
     let table_header = Row::new(header_cells).height(1).bottom_margin(1);
 
-    let rows = app.logs.iter().rev().map(|(msg, color)| {
+    let rows = app.logs.iter().rev().map(|(acc, details, color)| {
         let cells = vec![
-            Cell::from("Now"),
-            Cell::from(msg.clone()).style(Style::default().fg(*color)),
-            Cell::from("---"),
+            Cell::from(acc.clone()).style(Style::default().fg(*color).add_modifier(Modifier::BOLD)),
+            Cell::from(details.clone()).style(Style::default().fg(*color)),
         ];
         Row::new(cells)
     });
 
     let t = Table::new(rows, [
-            Constraint::Percentage(15),
+            Constraint::Percentage(30),
             Constraint::Percentage(70),
-            Constraint::Percentage(15),
         ])
         .header(table_header)
         .block(Block::default().borders(Borders::ALL).title(" Live Logs "))
@@ -370,11 +353,11 @@ fn ui(f: &mut Frame, app: &AppState) {
 // --- Logic Helpers ---
 
 macro_rules! log_output {
-    ($tx:expr, $msg:expr, $color:expr) => {
+    ($tx:expr, $acc:expr, $details:expr, $color:expr) => {
         if let Some(tx) = $tx {
-            let _ = tx.send(UiEvent::Log($msg, $color));
+            let _ = tx.send(UiEvent::Log($acc, $details, $color));
         } else {
-            println!("{}", $msg);
+            println!("{} | {}", $acc, $details);
         }
     };
 }
@@ -395,7 +378,7 @@ async fn scan_accounts(
 
     for signer_info in signers_info {
         let signer_pubkey = signer_info.public_key.parse::<Pubkey>().unwrap();
-        log_output!(&tx, format!("Signer: {}", signer_info.name), Color::White);
+        log_output!(&tx, "Signer".to_string(), signer_info.name.clone(), Color::White);
 
         let accounts = fetch_all_token_accounts(&rpc_client, &signer_pubkey).await?;
 
@@ -439,12 +422,12 @@ async fn scan_accounts(
 
                 let color = if is_actionable { Color::Green } else { Color::Yellow };
 
-                // [UPDATED] More details in the Scan Log
-                let rent_in_sol = lamports_to_sol(acc.lamports);
-                log_output!(&tx, format!(
+                let details = format!(
                     "{} | Mint: {} | Rent: {:.4} SOL | Bal: {}",
-                    acc.pubkey, acc.mint, rent_in_sol, acc.amount
-                ), color);
+                    status_str, acc.mint, lamports_to_sol(acc.lamports), acc.amount
+                );
+
+                log_output!(&tx, acc.pubkey.to_string(), details, color);
 
                 if is_actionable {
                     total_rent += acc.lamports;
@@ -454,7 +437,7 @@ async fn scan_accounts(
         }
     }
 
-    log_output!(&tx, format!("Summary: {} Reclaimable ({:.4} SOL)", total_count, lamports_to_sol(total_rent)), Color::Cyan);
+    log_output!(&tx, "SUMMARY".to_string(), format!("{} Reclaimable ({:.4} SOL)", total_count, lamports_to_sol(total_rent)), Color::Cyan);
     Ok(())
 }
 
@@ -478,7 +461,7 @@ async fn reclaim_rent(
         let signer = signer_pool.get_signer_by_pubkey(&signer_info.public_key)?;
 
         if tx.is_some() {
-             log_output!(&tx, format!("Processing: {}", signer_info.name), Color::White);
+             log_output!(&tx, "Processing".to_string(), signer_info.name.clone(), Color::White);
         }
         
         let accounts = fetch_all_token_accounts(&rpc_client, &signer_pubkey).await?;
@@ -508,12 +491,12 @@ async fn reclaim_rent(
             let final_reason = if force_all { ReclaimReason::ForceClosed } else { reason };
 
             if should_close {
-                log_output!(&tx, format!("CLOSING: {} ({:?})", acc.pubkey, final_reason), Color::Magenta);
+                log_output!(&tx, acc.pubkey.to_string(), format!("CLOSING ({:?})", final_reason), Color::Magenta);
 
                 if execute {
                     match close_account(&rpc_client, &signer, &acc, &signer_pubkey).await {
                         Ok(sig) => {
-                            log_output!(&tx, format!("✅ Closed. Sig: {}", sig), Color::Green);
+                            log_output!(&tx, "SUCCESS".to_string(), format!("Sig: {}", sig), Color::Green);
                             let rent_sol = lamports_to_sol(acc.lamports);
                             reclaimed_rent += acc.lamports;
                             reclaimed_count += 1;
@@ -535,7 +518,7 @@ async fn reclaim_rent(
 
                             tracker.pending_closures.remove(&pubkey_str);
                         }
-                        Err(e) => log_output!(&tx, format!("❌ Failed: {}", e), Color::Red),
+                        Err(e) => log_output!(&tx, "FAILED".to_string(), format!("{}", e), Color::Red),
                     }
                 } else {
                     reclaimed_rent += acc.lamports;
@@ -543,23 +526,15 @@ async fn reclaim_rent(
                 }
             } else {
                 if !execute {
-                    let skip_msg = if is_allowed {
-                        "Allowed"
-                    } else {
-                        match final_reason {
-                            ReclaimReason::NewDetection => "New (Grace Period)",
-                            ReclaimReason::GracePeriodActive => "Wait 24h",
-                            _ => "Unknown",
-                        }
-                    };
-                    log_output!(&tx, format!("SKIP: {} ({})", acc.pubkey, skip_msg), Color::DarkGray);
+                    let skip_msg = if is_allowed { "Allowed" } else { "Wait 24h" };
+                    log_output!(&tx, acc.pubkey.to_string(), format!("SKIP: {}", skip_msg), Color::DarkGray);
                 }
             }
         }
     }
 
     if !execute && tx.is_some() {
-        log_output!(&tx, format!("Dry Run: {} Accts ({:.4} SOL)", reclaimed_count, lamports_to_sol(reclaimed_rent)), Color::Cyan);
+        log_output!(&tx, "DRY RUN".to_string(), format!("{} Accts ({:.4} SOL)", reclaimed_count, lamports_to_sol(reclaimed_rent)), Color::Cyan);
     }
 
     Ok(())
