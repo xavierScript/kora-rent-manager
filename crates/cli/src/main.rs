@@ -75,6 +75,11 @@ pub enum RentManagerCommands {
         #[arg(long, default_value_t = false)]
         force_all: bool,
     },
+    /// Show rent efficiency statistics
+    Stats {
+        #[command(flatten)]
+        rpc_args: Box<RpcArgs>,
+    },
 }
 
 #[derive(Subcommand)]

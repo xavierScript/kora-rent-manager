@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::str::FromStr;
 use std::collections::HashMap;
-use std::fs::{self, File, OpenOptions}; // Added OpenOptions
+use std::fs::{self, File, OpenOptions};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
@@ -30,7 +30,7 @@ use base64::{Engine as _, engine::general_purpose};
 // --- Constants ---
 const GRACE_PERIOD_SECONDS: u64 = 24 * 60 * 60; // 24 Hours
 const TRACKER_FILE: &str = "grace_period.json";
-const AUDIT_FILE: &str = "audit_log.csv"; // [NEW] Audit File Name
+const AUDIT_FILE: &str = "audit_log.csv";
 
 // --- Data Structures ---
 
@@ -42,22 +42,19 @@ struct TokenAccountInfo {
     program_id: Pubkey,
 }
 
-// Explicit Reason Codes
-#[derive(Debug, PartialEq, Serialize)] // Added Serialize for CSV logging
+#[derive(Debug, PartialEq, Serialize)]
 enum ReclaimReason {
-    ZeroBalance,                 // Eligible because balance is 0
-    InactiveGracePeriodPassed,   // Eligible because grace period is over
-    AllowedPaymentToken,         // Skipped because it's a whitelisted token
-    GracePeriodActive,           // Skipped because it's too new
-    FundedIgnored,               // Skipped because it has money
-    NewDetection,                // Skipped because we just found it
-    ForceClosed,                 // Closed despite whitelist (force flag)
+    ZeroBalance,
+    InactiveGracePeriodPassed,
+    AllowedPaymentToken,
+    GracePeriodActive,
+    FundedIgnored,
+    NewDetection,
+    ForceClosed,
 }
 
-// Simple DB for tracking timestamps
 #[derive(Serialize, Deserialize, Default)]
 struct GracePeriodTracker {
-    // Map of Account Pubkey -> Unix Timestamp (First Seen Empty)
     pending_closures: HashMap<String, u64>,
 }
 
@@ -77,8 +74,8 @@ impl GracePeriodTracker {
     }
 }
 
-// [NEW] Audit Log Record
-#[derive(Serialize)]
+// [UPDATED] Added Deserialize to read back for Stats
+#[derive(Serialize, Deserialize)] 
 struct AuditRecord {
     timestamp: u64,
     date_utc: String,
@@ -102,19 +99,19 @@ pub async fn handle_rent_manager(
         RentManagerCommands::Scan { rpc_args, .. } => rpc_args,
         RentManagerCommands::Reclaim { rpc_args, .. } => rpc_args,
         RentManagerCommands::Run { rpc_args, .. } => rpc_args,
+        RentManagerCommands::Stats { rpc_args } => rpc_args, // [NEW] Handle Stats args
     };
 
     if !rpc_args.skip_signer {
         init_signers(rpc_args).await?;
     } else {
         return Err(KoraError::ValidationError(
-            "Signer configuration is required for rent management.".to_string(),
+            "Signer configuration is required.".to_string(),
         ));
     }
 
     let signer_pool = get_signer_pool()?;
 
-    // Route Command
     match command {
         RentManagerCommands::Scan { all, .. } => {
             let mut tracker = GracePeriodTracker::load();
@@ -132,8 +129,88 @@ pub async fn handle_rent_manager(
         },
         RentManagerCommands::Run { interval, force_all, .. } => {
             run_daemon(rpc_client, &signer_pool, interval, force_all).await?;
+        },
+        RentManagerCommands::Stats { .. } => {
+            // [NEW] Execute Stats Logic
+            show_stats(rpc_client, &signer_pool).await?;
         }
     }
+
+    Ok(())
+}
+
+// --- Stats Logic ---
+
+async fn show_stats(
+    rpc_client: Arc<RpcClient>,
+    signer_pool: &SignerPool,
+) -> Result<(), KoraError> {
+    let signers_info = signer_pool.get_signers_info();
+    
+    // 1. Gather Live Blockchain Data
+    let mut total_accounts = 0;
+    let mut idle_accounts = 0;
+    let mut rent_locked_lamports = 0;
+
+    println!("Gathering live blockchain data (this may take a moment)...");
+
+    for signer_info in signers_info {
+        let signer_pubkey = signer_info.public_key.parse::<Pubkey>().unwrap();
+        // Reuse the existing fetch helper
+        let accounts = fetch_all_token_accounts(&rpc_client, &signer_pubkey).await?;
+        
+        for acc in accounts {
+            total_accounts += 1;
+            rent_locked_lamports += acc.lamports;
+            if acc.amount == 0 {
+                idle_accounts += 1;
+            }
+        }
+    }
+
+    // 2. Gather Historical Data from CSV
+    let mut rent_reclaimed_30d = 0.0;
+    let mut total_reclaimed_ever = 0.0;
+    
+    if Path::new(AUDIT_FILE).exists() {
+        let file = File::open(AUDIT_FILE).map_err(|e| KoraError::InternalServerError(e.to_string()))?;
+        let mut rdr = csv::Reader::from_reader(file);
+        
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        let thirty_days_ago = now.saturating_sub(30 * 24 * 60 * 60);
+
+        for result in rdr.deserialize() {
+            if let Ok(record) = result {
+                let record: AuditRecord = record;
+                total_reclaimed_ever += record.rent_reclaimed_sol;
+                
+                if record.timestamp >= thirty_days_ago {
+                    rent_reclaimed_30d += record.rent_reclaimed_sol;
+                }
+            }
+        }
+    }
+
+    // 3. Calculate Efficiency
+    let rent_locked_sol = lamports_to_sol(rent_locked_lamports);
+    let total_capital_deployed = rent_locked_sol + total_reclaimed_ever;
+    
+    // Efficiency = (Recovered / Total Deployed) * 100
+    let efficiency = if total_capital_deployed > 0.0 {
+        (total_reclaimed_ever / total_capital_deployed) * 100.0
+    } else {
+        0.0
+    };
+
+    // 4. Output Report
+    println!("\n📊 KORA RENT MANAGER STATS");
+    println!("--------------------------");
+    println!("Total Sponsored Accounts: {}", total_accounts);
+    println!("Idle Accounts:            {}", idle_accounts);
+    println!("Rent Locked:              {:.4} SOL", rent_locked_sol);
+    println!("Rent Reclaimed (30d):     {:.4} SOL", rent_reclaimed_30d);
+    println!("Efficiency Gain:          {:.2}%", efficiency);
+    println!("--------------------------");
 
     Ok(())
 }
@@ -317,7 +394,6 @@ async fn reclaim_rent(
                             reclaimed_rent += acc.lamports;
                             reclaimed_count += 1;
                             
-                            // [NEW] Log to CSV
                             log_to_audit_trail(&AuditRecord {
                                 timestamp: now,
                                 date_utc: humantime::format_rfc3339_seconds(SystemTime::now()).to_string(),
@@ -367,12 +443,8 @@ async fn reclaim_rent(
 
 // --- Helpers ---
 
-// [NEW] Audit Logging Function
 fn log_to_audit_trail(record: &AuditRecord) {
-    // Check if file exists to know if we need headers
     let file_exists = Path::new(AUDIT_FILE).exists();
-    
-    // Open file in Append mode
     let file = OpenOptions::new()
         .create(true)
         .append(true)
@@ -380,7 +452,7 @@ fn log_to_audit_trail(record: &AuditRecord) {
         .unwrap_or_else(|e| panic!("Failed to open log file: {}", e));
 
     let mut wtr = csv::WriterBuilder::new()
-        .has_headers(!file_exists) // Only write headers if file is new
+        .has_headers(!file_exists)
         .from_writer(file);
 
     if let Err(e) = wtr.serialize(record) {
