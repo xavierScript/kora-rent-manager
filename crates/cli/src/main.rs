@@ -52,6 +52,10 @@ pub enum RentManagerCommands {
     Scan {
         #[command(flatten)]
         rpc_args: Box<RpcArgs>,
+
+        /// Show all accounts, including those with funds
+        #[arg(long, default_value_t = false)]
+        all: bool,
     },
     /// Reclaim rent from empty accounts
     Reclaim {

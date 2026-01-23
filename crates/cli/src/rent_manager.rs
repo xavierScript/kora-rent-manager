@@ -17,10 +17,10 @@ use solana_sdk::{
     pubkey::Pubkey,
     transaction::Transaction,
     instruction::Instruction,
-    program_pack::Pack, // [FIX] This import is required for .unpack()
+    program_pack::Pack,
 };
 use solana_account_decoder::UiAccountData;
-use base64::{Engine as _, engine::general_purpose}; // [FIX] New Base64 Engine
+use base64::{Engine as _, engine::general_purpose};
 
 // --- Data Structures ---
 
@@ -39,9 +39,10 @@ pub async fn handle_rent_manager(
     rpc_client: Arc<RpcClient>,
 ) -> Result<(), KoraError> {
     // 1. Unpack arguments
-    let (rpc_args, execute, force_all, is_scan_only) = match command {
-        RentManagerCommands::Scan { rpc_args } => (rpc_args, false, false, true),
-        RentManagerCommands::Reclaim { rpc_args, execute, force_all } => (rpc_args, execute, force_all, false),
+    // We unpack 'all' from Scan, and default it to false for Reclaim
+    let (rpc_args, execute, force_all, is_scan_only, show_all) = match command {
+        RentManagerCommands::Scan { rpc_args, all } => (rpc_args, false, false, true, all),
+        RentManagerCommands::Reclaim { rpc_args, execute, force_all } => (rpc_args, execute, force_all, false, false),
     };
 
     // 2. Initialize Signers
@@ -57,8 +58,8 @@ pub async fn handle_rent_manager(
     
     // 3. Route to logic
     if is_scan_only {
-        println!("Scanning for reclaimable accounts...");
-        scan_accounts(rpc_client, &signer_pool).await
+        println!("Scanning for accounts...");
+        scan_accounts(rpc_client, &signer_pool, show_all).await
     } else {
         if !execute {
             println!("Running in DRY-RUN mode. Use --execute to perform reclamation.");
@@ -72,6 +73,7 @@ pub async fn handle_rent_manager(
 async fn scan_accounts(
     rpc_client: Arc<RpcClient>,
     signer_pool: &SignerPool,
+    show_all: bool, // [NEW] Flag to show funded accounts
 ) -> Result<(), KoraError> {
     let signers_info = signer_pool.get_signers_info();
     let (allowed_tokens, is_all_allowed) = get_allowed_tokens()?;
@@ -84,27 +86,37 @@ async fn scan_accounts(
         println!("\nSigner: {} ({})", signer_info.name, signer_pubkey);
 
         let accounts = fetch_all_token_accounts(&rpc_client, &signer_pubkey).await?;
-        let mut found = 0;
+        let mut found_reclaimable = 0;
 
         for acc in accounts {
             let is_allowed = is_all_allowed || allowed_tokens.contains(&acc.mint);
+            let is_empty = acc.amount == 0;
 
-            if acc.amount == 0 {
-                let status = if is_allowed { "KEEP (Allowed)" } else { "RECLAIMABLE" };
+            // Display logic: Show if empty OR if user passed --all
+            if is_empty || show_all {
+                let status = if !is_empty {
+                    "FUNDED (Ignored)" // Status for accounts with money
+                } else if is_allowed {
+                    "KEEP (Allowed)"
+                } else {
+                    "RECLAIMABLE"
+                };
+                
                 println!(
-                    "  - Account: {} | Mint: {} | Balance: 0 | Rent: {} | Status: {}",
-                    acc.pubkey, acc.mint, acc.lamports, status
+                    "  - Account: {} | Mint: {} | Balance: {} | Rent: {} | Status: {}",
+                    acc.pubkey, acc.mint, acc.amount, acc.lamports, status
                 );
 
-                if !is_allowed {
+                // Only count towards total if it is actually reclaimable
+                if is_empty && !is_allowed {
                     total_rent += acc.lamports;
                     total_count += 1;
-                    found += 1;
+                    found_reclaimable += 1;
                 }
             }
         }
         
-        if found == 0 {
+        if found_reclaimable == 0 {
             println!("  No reclaimable accounts found.");
         }
     }
@@ -137,6 +149,7 @@ async fn reclaim_rent(
         let accounts = fetch_all_token_accounts(&rpc_client, &signer_pubkey).await?;
 
         for acc in accounts {
+            // Reclaim strictly ignores funded accounts regardless of flags for safety
             if acc.amount != 0 { continue; }
 
             let is_allowed = is_all_allowed || allowed_tokens.contains(&acc.mint);
@@ -180,7 +193,6 @@ async fn fetch_all_token_accounts(
 ) -> Result<Vec<TokenAccountInfo>, KoraError> {
     let mut all_accounts = Vec::new();
     
-    // [FIX] Loop prevents async closure lifetime issues
     let programs = [
         spl_token_interface::id(),
         spl_token_2022_interface::id(),
@@ -220,7 +232,6 @@ fn parse_token_account_data(data: &UiAccountData) -> Option<(u64, Pubkey)> {
             Some((amount.parse().ok()?, Pubkey::from_str(mint).ok()?))
         },
         UiAccountData::Binary(data_str, _) => {
-            // [FIX] Use new Base64 engine
             let bytes = general_purpose::STANDARD.decode(data_str).ok()?;
             
             if let Ok(acc) = spl_token_interface::state::Account::unpack(&bytes) {
@@ -235,7 +246,6 @@ fn parse_token_account_data(data: &UiAccountData) -> Option<(u64, Pubkey)> {
     }
 }
 
-// [FIX] Use generic impl SolanaSigner
 async fn close_account(
     rpc_client: &RpcClient,
     signer: &Arc<impl SolanaSigner>, 
