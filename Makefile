@@ -16,3 +16,30 @@ all: check test build
 
 # Run all tests (unit + TypeScript + integration)
 test-all: build test test-ts test-integration
+
+
+################################################## Rent Manager Makefile ##################################################
+
+# Variables
+RPC = https://api.devnet.solana.com
+CONFIG = kora.toml
+SIGNERS = signers.toml
+
+# Commands
+.PHONY: scan run stats reclaim
+
+# Short command: "make scan"
+scan:
+	kora --rpc-url $(RPC) --config $(CONFIG) rent-manager scan --all --signers-config $(SIGNERS)
+
+# Short command: "make run" (Daemon Mode)
+run:
+	kora --rpc-url $(RPC) --config $(CONFIG) rent-manager run --interval 10s --signers-config $(SIGNERS)
+
+# Short command: "make stats"
+stats:
+	kora --rpc-url $(RPC) --config $(CONFIG) rent-manager stats --signers-config $(SIGNERS)
+
+# Short command: "make reclaim"
+reclaim:
+	kora --rpc-url $(RPC) --config $(CONFIG) rent-manager reclaim --execute --signers-config $(SIGNERS)
