@@ -1,0 +1,34 @@
+/target
+**/*.rs.bk
+.env
+.idea/
+.vscode/
+*.pdb
+generated/
+
+/tests/src/common/transfer-hook-example/target
+
+# SDK
+node_modules/
+dist/
+
+# Coverage reports
+coverage/
+*.profraw
+
+.DS_Store
+
+# Make test files
+*.pid
+test-ledger/
+.local/
+tests/src/common/fixtures/lookup_tables.json
+tests/src/common/fixtures/test-accounts/
+
+# Docs
+sdks/ts/docs-html/
+sdks/ts/docs-md/
+docs/api-reference-generated/
+
+# AI
+.claude/

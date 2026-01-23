@@ -1,0 +1,40 @@
+[package]
+name = "kora-cli"
+version = "2.0.2"
+edition = "2021"
+description = "CLI for Kora gasless relayer"
+license = "MIT"
+readme = "../../README.md"
+
+[[bin]]
+name = "kora"
+path = "src/main.rs"
+
+[[bin]]
+name = "setup_reclaim"
+path = "src/bin/setup_reclaim.rs"
+
+[features]
+docs = ["kora-lib/docs", "dep:utoipa"]
+
+[dependencies]
+kora-lib = { path = "../lib", version = "2.0.2" }
+clap = { workspace = true }
+tokio = { workspace = true }
+env_logger = { workspace = true }
+solana-client = { workspace = true }
+dotenv = { workspace = true }
+serde_json.workspace = true
+utoipa = { workspace = true, optional = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+log = { workspace = true }
+spl-token-interface = { workspace = true }
+spl-token-2022-interface = { workspace = true }
+spl-associated-token-account-interface = { workspace = true }
+solana-sdk = { workspace = true }
+solana-program = { workspace = true }
+solana-commitment-config = { workspace = true }
+solana-system-interface = { workspace = true }
+solana-account-decoder = "3.1.7"
+base64.workspace = true
