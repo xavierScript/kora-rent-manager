@@ -40,6 +40,14 @@ run:
 stats:
 	kora --rpc-url $(RPC) --config $(CONFIG) rent-manager stats --signers-config $(SIGNERS)
 
+#RECLAIM: Safely close eligible accounts (Executes transactions)
+# Note: This respects your 24h Grace Period and Whitelist
 # Short command: "make reclaim"
 reclaim:
 	kora --rpc-url $(RPC) --config $(CONFIG) rent-manager reclaim --execute --signers-config $(SIGNERS)
+
+#FORCE RECLAIM: Close everything immediately (Ignores Grace Period)
+# Use with caution!
+# Short command: "make force-reclaim"
+force-reclaim:
+	kora --rpc-url $(RPC) --config $(CONFIG) rent-manager reclaim --execute --force-all --signers-config $(SIGNERS)
