@@ -42,3 +42,4 @@ ratatui = "0.30.0"
 crossterm = "0.29.0"
 serde = { workspace = true, features = ["derive"] }
 humantime = "2.3.0"
+csv = "1.4.0"

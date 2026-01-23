@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::str::FromStr;
 use std::collections::HashMap;
-use std::fs::{self, File};
+use std::fs::{self, File, OpenOptions}; // Added OpenOptions
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
@@ -30,6 +30,7 @@ use base64::{Engine as _, engine::general_purpose};
 // --- Constants ---
 const GRACE_PERIOD_SECONDS: u64 = 24 * 60 * 60; // 24 Hours
 const TRACKER_FILE: &str = "grace_period.json";
+const AUDIT_FILE: &str = "audit_log.csv"; // [NEW] Audit File Name
 
 // --- Data Structures ---
 
@@ -41,7 +42,8 @@ struct TokenAccountInfo {
     program_id: Pubkey,
 }
 
-#[derive(Debug, PartialEq)]
+// Explicit Reason Codes
+#[derive(Debug, PartialEq, Serialize)] // Added Serialize for CSV logging
 enum ReclaimReason {
     ZeroBalance,                 // Eligible because balance is 0
     InactiveGracePeriodPassed,   // Eligible because grace period is over
@@ -52,6 +54,7 @@ enum ReclaimReason {
     ForceClosed,                 // Closed despite whitelist (force flag)
 }
 
+// Simple DB for tracking timestamps
 #[derive(Serialize, Deserialize, Default)]
 struct GracePeriodTracker {
     // Map of Account Pubkey -> Unix Timestamp (First Seen Empty)
@@ -74,6 +77,19 @@ impl GracePeriodTracker {
     }
 }
 
+// [NEW] Audit Log Record
+#[derive(Serialize)]
+struct AuditRecord {
+    timestamp: u64,
+    date_utc: String,
+    account: String,
+    mint: String,
+    action: String,
+    reason: String,
+    rent_reclaimed_sol: f64,
+    signature: String,
+}
+
 // --- Main Handler ---
 
 pub async fn handle_rent_manager(
@@ -81,7 +97,7 @@ pub async fn handle_rent_manager(
     rpc_client: Arc<RpcClient>,
 ) -> Result<(), KoraError> {
     
-    // Initialize Signers (Common for all commands)
+    // Initialize Signers
     let rpc_args = match &command {
         RentManagerCommands::Scan { rpc_args, .. } => rpc_args,
         RentManagerCommands::Reclaim { rpc_args, .. } => rpc_args,
@@ -115,7 +131,6 @@ pub async fn handle_rent_manager(
             tracker.save();
         },
         RentManagerCommands::Run { interval, force_all, .. } => {
-            // Daemon Mode
             run_daemon(rpc_client, &signer_pool, interval, force_all).await?;
         }
     }
@@ -131,7 +146,6 @@ async fn run_daemon(
     interval_str: String,
     force_all: bool,
 ) -> Result<(), KoraError> {
-    // Parse the interval string (e.g., "6h", "30m")
     let duration = humantime::parse_duration(&interval_str)
         .map_err(|e| KoraError::ValidationError(format!("Invalid interval format '{}': {}", interval_str, e)))?;
 
@@ -139,17 +153,15 @@ async fn run_daemon(
     println!("   Interval: {:?}", duration);
     println!("   Mode: AUTO-EXECUTE (Live Reclaims)");
     println!("   Tracking File: {}", TRACKER_FILE);
+    println!("   Audit Log: {}", AUDIT_FILE);
     println!("----------------------------------------");
 
     loop {
         let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
         println!("\n--- [Job Start: {}] ---", timestamp);
 
-        // Load state fresh every loop so manual edits to the file are respected
         let mut tracker = GracePeriodTracker::load();
 
-        // Run the Reclaim Logic (Execute = true)
-        // We capture errors here so the bot doesn't crash on a transient RPC failure
         match reclaim_rent(rpc_client.clone(), signer_pool, true, force_all, &mut tracker).await {
             Ok(_) => {
                 tracker.save();
@@ -264,7 +276,7 @@ async fn reclaim_rent(
         let signer_pubkey = signer_info.public_key.parse::<Pubkey>().unwrap();
         let signer = signer_pool.get_signer_by_pubkey(&signer_info.public_key)?;
 
-        if !execute { // Only print signer header if we aren't in daemon mode (too spammy for logs otherwise)
+        if !execute {
              println!("\nProcessing Signer: {} ({})", signer_info.name, signer_pubkey);
         }
         
@@ -301,8 +313,22 @@ async fn reclaim_rent(
                     match close_account(&rpc_client, &signer, &acc, &signer_pubkey).await {
                         Ok(sig) => {
                             println!("    ✅ Closed. Sig: {}", sig);
+                            let rent_sol = lamports_to_sol(acc.lamports);
                             reclaimed_rent += acc.lamports;
                             reclaimed_count += 1;
+                            
+                            // [NEW] Log to CSV
+                            log_to_audit_trail(&AuditRecord {
+                                timestamp: now,
+                                date_utc: humantime::format_rfc3339_seconds(SystemTime::now()).to_string(),
+                                account: pubkey_str.clone(),
+                                mint: acc.mint.to_string(),
+                                action: "RECLAIMED".to_string(),
+                                reason: format!("{:?}", final_reason),
+                                rent_reclaimed_sol: rent_sol,
+                                signature: sig,
+                            });
+
                             tracker.pending_closures.remove(&pubkey_str);
                         }
                         Err(e) => println!("    ❌ Failed: {}", e),
@@ -312,7 +338,6 @@ async fn reclaim_rent(
                     reclaimed_count += 1;
                 }
             } else {
-                // In Execute/Daemon mode, we only log actions or errors, not skips (to keep logs clean)
                 if !execute {
                     let skip_msg = if is_allowed {
                         "Allowed Payment Token"
@@ -334,7 +359,6 @@ async fn reclaim_rent(
         println!("Total Reclaimed Accounts: {}", reclaimed_count);
         println!("Total Rent: {} SOL", lamports_to_sol(reclaimed_rent));
     } else if reclaimed_count > 0 {
-        // Only print summary in daemon mode if we actually did something
         println!("Cycle Summary: Reclaimed {} Accounts ({} SOL)", reclaimed_count, lamports_to_sol(reclaimed_rent));
     }
 
@@ -342,6 +366,28 @@ async fn reclaim_rent(
 }
 
 // --- Helpers ---
+
+// [NEW] Audit Logging Function
+fn log_to_audit_trail(record: &AuditRecord) {
+    // Check if file exists to know if we need headers
+    let file_exists = Path::new(AUDIT_FILE).exists();
+    
+    // Open file in Append mode
+    let file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(AUDIT_FILE)
+        .unwrap_or_else(|e| panic!("Failed to open log file: {}", e));
+
+    let mut wtr = csv::WriterBuilder::new()
+        .has_headers(!file_exists) // Only write headers if file is new
+        .from_writer(file);
+
+    if let Err(e) = wtr.serialize(record) {
+        eprintln!("⚠️ Failed to write audit log: {}", e);
+    }
+    wtr.flush().unwrap();
+}
 
 async fn fetch_all_token_accounts(
     rpc_client: &RpcClient,
