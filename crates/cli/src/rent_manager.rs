@@ -65,6 +65,8 @@ enum ReclaimReason {
     ForceClosed,
 }
 
+/// Persists the timestamp of when an account was first seen empty.
+/// This prevents closing accounts that were *just* created and haven't been funded yet.
 #[derive(Serialize, Deserialize, Default)]
 struct GracePeriodTracker {
     pending_closures: HashMap<String, u64>,
@@ -100,6 +102,7 @@ struct AuditRecord {
 
 // --- TUI Types ---
 
+/// Events sent from the worker thread to the UI thread
 enum UiEvent {
     Log(String, String, Color), // (Account, Details, Color)
     StatsUpdate { reclaimed: f64, count: u64 },
@@ -107,6 +110,7 @@ enum UiEvent {
     TaskComplete,
 }
 
+/// Holds the current state of the dashboard
 struct AppState {
     logs: Vec<(String, String, Color)>, 
     total_reclaimed_sol: f64,
@@ -116,6 +120,7 @@ struct AppState {
     is_working: bool,
 }
 
+/// Determines which logic the worker thread runs
 enum OperationMode {
     Scan { all: bool },
     Reclaim { execute: bool, force_all: bool },
@@ -129,6 +134,7 @@ pub async fn handle_rent_manager(
     rpc_client: Arc<RpcClient>,
 ) -> Result<(), KoraError> {
     
+    // 1. Initialize Signers
     let rpc_args = match &command {
         RentManagerCommands::Scan { rpc_args, .. } => rpc_args,
         RentManagerCommands::Reclaim { rpc_args, .. } => rpc_args,
@@ -146,8 +152,10 @@ pub async fn handle_rent_manager(
 
     let signer_pool = get_signer_pool()?;
 
+    // 2. Dispatch Command
     match command {
         RentManagerCommands::Stats { .. } => {
+            // Stats prints to stdout (better for copying/exporting)
             show_stats(rpc_client, &signer_pool).await?;
         },
         RentManagerCommands::Scan { all, .. } => {
@@ -166,22 +174,27 @@ pub async fn handle_rent_manager(
 
 // --- Unified TUI Runner ---
 
+/// Launches the TUI environment and spawns the background worker
 async fn run_tui_task(
     rpc_client: Arc<RpcClient>,
     signer_pool: Arc<SignerPool>, 
     mode: OperationMode,
 ) -> Result<(), KoraError> {
+    // 1. Setup Terminal (Raw Mode)
     enable_raw_mode().unwrap();
     let mut stdout = std::io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture).unwrap();
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend).unwrap();
 
+    // 2. Channels for communication (Worker -> UI)
     let (tx, mut rx) = mpsc::unbounded_channel();
     
+    // 3. Clone Arcs for background thread
     let rpc_bg = rpc_client.clone();
     let pool_bg = signer_pool.clone();
     
+    // 4. Spawn the Worker
     tokio::spawn(async move {
         let mut tracker = GracePeriodTracker::load();
 
@@ -201,6 +214,7 @@ async fn run_tui_task(
                 if let Err(e) = reclaim_rent(rpc_bg, &pool_bg, execute, force_all, &mut tracker, Some(tx.clone())).await {
                     let _ = tx.send(UiEvent::Log("System".to_string(), format!("Error: {}", e), Color::Red));
                 }
+                // Save tracker only on Reclaim operations
                 tracker.save();
                 let _ = tx.send(UiEvent::Status("✅ Task Complete. Press 'q' to quit.".to_string()));
                 let _ = tx.send(UiEvent::TaskComplete);
@@ -231,6 +245,7 @@ async fn run_tui_task(
         }
     });
 
+    // 5. App State & Event Loop
     let mut app = AppState {
         logs: vec![],
         total_reclaimed_sol: 0.0,
@@ -243,10 +258,11 @@ async fn run_tui_task(
     loop {
         terminal.draw(|f| ui(f, &app)).unwrap();
 
+        // Process all pending messages from worker
         if let Ok(event) = rx.try_recv() {
             match event {
                 UiEvent::Log(acc, details, color) => {
-                    if app.logs.len() > 50 { app.logs.remove(0); }
+                    if app.logs.len() > 50 { app.logs.remove(0); } // Prevent memory bloat
                     app.logs.push((acc, details, color));
                 },
                 UiEvent::StatsUpdate { reclaimed, count } => {
@@ -258,10 +274,12 @@ async fn run_tui_task(
             }
         }
 
+        // Animate Spinner
         if app.is_working {
             app.spinner_idx = (app.spinner_idx + 1) % 4;
         }
 
+        // Handle Input (Non-blocking poll)
         if event::poll(Duration::from_millis(100)).unwrap() {
             if let Event::Key(key) = event::read().unwrap() {
                 if key.code == KeyCode::Char('q') {
@@ -271,6 +289,7 @@ async fn run_tui_task(
         }
     }
 
+    // 6. Cleanup Terminal
     disable_raw_mode().unwrap();
     execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
     terminal.show_cursor().unwrap();
@@ -278,6 +297,7 @@ async fn run_tui_task(
     Ok(())
 }
 
+/// Renders the TUI layout
 fn ui(f: &mut Frame, app: &AppState) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -291,7 +311,7 @@ fn ui(f: &mut Frame, app: &AppState) {
 
     // 1. Header
     let spinner = if app.is_working { ["|", "/", "-", "\\"][app.spinner_idx] } else { "✓" };
-    let header_text = format!(" KORA RENT MANAGER v1.0 | {} ", spinner);
+    let header_text = format!(" KORA RENT MANAGER v2.0 | {} ", spinner);
     let header = Paragraph::new(header_text)
         .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
         .alignment(Alignment::Center)
@@ -313,6 +333,7 @@ fn ui(f: &mut Frame, app: &AppState) {
         .block(Block::default().title(" Performance Metrics ").borders(Borders::ALL));
     f.render_widget(kpi_block, stats_chunks[0]);
 
+    // Efficiency Gauge (Visual Flair)
     let gauge = Gauge::default()
         .block(Block::default().title(" Cycle Efficiency ").borders(Borders::ALL))
         .gauge_style(Style::default().fg(Color::Magenta))
@@ -320,7 +341,7 @@ fn ui(f: &mut Frame, app: &AppState) {
         .label(if app.total_reclaimed_sol > 0.0 { "OPTIMIZED" } else { "IDLE" });
     f.render_widget(gauge, stats_chunks[1]);
 
-    // 3. Table
+    // 3. Main Table
     let header_cells = ["Account", "Details"]
         .iter()
         .map(|h| Cell::from(*h).style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)));
@@ -335,8 +356,8 @@ fn ui(f: &mut Frame, app: &AppState) {
     });
 
     let t = Table::new(rows, [
-            Constraint::Percentage(30),
-            Constraint::Percentage(70),
+            Constraint::Percentage(30), // Account Width
+            Constraint::Percentage(70), // Details Width
         ])
         .header(table_header)
         .block(Block::default().borders(Borders::ALL).title(" Live Logs "))
@@ -357,6 +378,7 @@ macro_rules! log_output {
         if let Some(tx) = $tx {
             let _ = tx.send(UiEvent::Log($acc, $details, $color));
         } else {
+            // Stdout fallback if TUI is not used
             println!("{} | {}", $acc, $details);
         }
     };
@@ -388,6 +410,7 @@ async fn scan_accounts(
             let is_empty = acc.amount == 0;
             
             let (reason, is_actionable) = if !is_empty {
+                // If funded, clean up tracker
                 if tracker.pending_closures.remove(&pubkey_str).is_some() {
                     (ReclaimReason::FundedIgnored, false)
                 } else {
@@ -415,15 +438,16 @@ async fn scan_accounts(
                     ReclaimReason::InactiveGracePeriodPassed => "RECLAIMABLE (Safe)",
                     ReclaimReason::AllowedPaymentToken => "KEEP (Allowed)",
                     ReclaimReason::GracePeriodActive => "GRACE PERIOD",
-                    ReclaimReason::FundedIgnored => "FUNDED (Ignored)",
-                    ReclaimReason::NewDetection => "PENDING (Marked)",
+                    ReclaimReason::FundedIgnored => "FUNDED",
+                    ReclaimReason::NewDetection => "PENDING",
                     ReclaimReason::ForceClosed => "FORCE CLOSED",
                 };
 
                 let color = if is_actionable { Color::Green } else { Color::Yellow };
 
+                // Format: [STATUS] Mint | Rent | Balance
                 let details = format!(
-                    "{} | Mint: {} | Rent: {:.4} SOL | Bal: {}",
+                    "[{}] Mint: {} | Rent: {:.4} SOL | Bal: {}",
                     status_str, acc.mint, lamports_to_sol(acc.lamports), acc.amount
                 );
 
@@ -526,8 +550,8 @@ async fn reclaim_rent(
                 }
             } else {
                 if !execute {
-                    let skip_msg = if is_allowed { "Allowed" } else { "Wait 24h" };
-                    log_output!(&tx, acc.pubkey.to_string(), format!("SKIP: {}", skip_msg), Color::DarkGray);
+                    let skip_msg = if is_allowed { "Allowed" } else { "Grace Period" };
+                    log_output!(&tx, acc.pubkey.to_string(), format!("[SKIP] {}", skip_msg), Color::DarkGray);
                 }
             }
         }
