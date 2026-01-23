@@ -48,23 +48,28 @@ enum Commands {
 
 #[derive(Subcommand)]
 pub enum RentManagerCommands {
-    /// Scan for reclaimable accounts
     Scan {
         #[command(flatten)]
         rpc_args: Box<RpcArgs>,
-
-        /// Show all accounts, including those with funds
         #[arg(long, default_value_t = false)]
         all: bool,
     },
-    /// Reclaim rent from empty accounts
     Reclaim {
         #[command(flatten)]
         rpc_args: Box<RpcArgs>,
-
-        /// Perform the reclamation (default is dry-run)
         #[arg(long, default_value_t = false)]
         execute: bool,
+        #[arg(long, default_value_t = false)]
+        force_all: bool,
+    },
+    /// Run as a background bot (Automatic Reclaim)
+    Run {
+        #[command(flatten)]
+        rpc_args: Box<RpcArgs>,
+
+        /// Check interval (e.g., "6h", "30m", "1d")
+        #[arg(long, default_value = "6h")]
+        interval: String,
 
         /// Close ALL empty accounts, even if they are for allowed tokens
         #[arg(long, default_value_t = false)]
