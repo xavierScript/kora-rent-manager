@@ -41,6 +41,18 @@ struct TokenAccountInfo {
     program_id: Pubkey,
 }
 
+// [NEW] Explicit Reason Codes
+#[derive(Debug, PartialEq)]
+enum ReclaimReason {
+    ZeroBalance,                 // Eligible because balance is 0
+    InactiveGracePeriodPassed,   // Eligible because grace period is over
+    AllowedPaymentToken,         // Skipped because it's a whitelisted token
+    GracePeriodActive,           // Skipped because it's too new
+    FundedIgnored,               // Skipped because it has money
+    NewDetection,                // Skipped because we just found it
+    ForceClosed,                 // Closed despite whitelist (force flag)
+}
+
 // Simple DB for tracking timestamps
 #[derive(Serialize, Deserialize, Default)]
 struct GracePeriodTracker {
@@ -60,7 +72,7 @@ impl GracePeriodTracker {
 
     fn save(&self) {
         let json = serde_json::to_string_pretty(&self).unwrap();
-        let _ = fs::write(TRACKER_FILE, json); // Ignore errors for simplicity in this demo
+        let _ = fs::write(TRACKER_FILE, json); 
     }
 }
 
@@ -134,46 +146,55 @@ async fn scan_accounts(
             let pubkey_str = acc.pubkey.to_string();
             let is_allowed = is_all_allowed || allowed_tokens.contains(&acc.mint);
             let is_empty = acc.amount == 0;
-
-            if is_empty {
-                // Check Grace Period
-                let (status, is_safe_to_close) = if let Some(&timestamp) = tracker.pending_closures.get(&pubkey_str) {
+            
+            // Determine Reason
+            let (reason, is_actionable) = if !is_empty {
+                // If funded, remove from tracker
+                if tracker.pending_closures.remove(&pubkey_str).is_some() {
+                    // It was pending, but now funded
+                    (ReclaimReason::FundedIgnored, false)
+                } else {
+                    (ReclaimReason::FundedIgnored, false)
+                }
+            } else if is_allowed {
+                (ReclaimReason::AllowedPaymentToken, false)
+            } else {
+                // It is empty and not allowed. Check grace period.
+                if let Some(&timestamp) = tracker.pending_closures.get(&pubkey_str) {
                     let age = now.saturating_sub(timestamp);
                     if age >= GRACE_PERIOD_SECONDS {
-                        ("RECLAIMABLE (Safe)", true)
+                        (ReclaimReason::InactiveGracePeriodPassed, true)
                     } else {
-                        let hours_left = (GRACE_PERIOD_SECONDS - age) / 3600;
-                        // Use a dynamic string for the status
-                        // Note: println! handles the formatting, we pass the result.
-                        // For simplicity here, we map to a static string, but let's print detailed status
-                        ("GRACE PERIOD", false) 
+                        (ReclaimReason::GracePeriodActive, false)
                     }
                 } else {
-                    // New empty account! Add to tracker
                     tracker.pending_closures.insert(pubkey_str.clone(), now);
-                    ("PENDING (Marked)", false)
+                    (ReclaimReason::NewDetection, false)
+                }
+            };
+
+            // Display Logic
+            if is_actionable || show_all || reason == ReclaimReason::NewDetection || reason == ReclaimReason::AllowedPaymentToken {
+                let status_str = match reason {
+                    ReclaimReason::ZeroBalance => "RECLAIMABLE", // Fallback
+                    ReclaimReason::InactiveGracePeriodPassed => "RECLAIMABLE (Safe)",
+                    ReclaimReason::AllowedPaymentToken => "KEEP (Allowed)",
+                    ReclaimReason::GracePeriodActive => "GRACE PERIOD",
+                    ReclaimReason::FundedIgnored => "FUNDED (Ignored)",
+                    ReclaimReason::NewDetection => "PENDING (Marked)",
+                    ReclaimReason::ForceClosed => "FORCE CLOSED",
                 };
 
-                // Override status if allowed token
-                let final_status = if is_allowed { "KEEP (Allowed)" } else { status };
+                let display_balance = if is_empty { "0".to_string() } else { acc.amount.to_string() };
 
                 println!(
-                    "  - Account: {} | Mint: {} | Balance: 0 | Status: {}",
-                    acc.pubkey, acc.mint, final_status
+                    "  - Account: {} | Mint: {} | Balance: {} | Reason: {:?} | Status: {}",
+                    acc.pubkey, acc.mint, display_balance, reason, status_str
                 );
 
-                if !is_allowed && is_safe_to_close {
+                if is_actionable {
                     total_rent += acc.lamports;
                     total_count += 1;
-                }
-
-            } else {
-                // Account is FUNDED. 
-                // CRITICAL: Remove from tracker if it was there (it's safe now!)
-                if tracker.pending_closures.remove(&pubkey_str).is_some() {
-                     println!("  - Account: {} | Status: FUNDED (Removed from Pending list)", acc.pubkey);
-                } else if show_all {
-                     println!("  - Account: {} | Balance: {} | Status: FUNDED", acc.pubkey, acc.amount);
                 }
             }
         }
@@ -213,30 +234,36 @@ async fn reclaim_rent(
 
             // 1. Safety Filter: Ignore Funded
             if acc.amount != 0 { 
-                // Auto-cleanup tracker
                 tracker.pending_closures.remove(&pubkey_str);
                 continue; 
             }
 
-            // 2. Whitelist Filter
+            // 2. Determine Eligibility
             let is_allowed = is_all_allowed || allowed_tokens.contains(&acc.mint);
-            if is_allowed && !force_all {
-                println!("  - Skipping: {} (Allowed Token)", acc.pubkey);
-                continue;
-            }
-
-            // 3. Grace Period Filter
-            let is_safe_time = if let Some(&timestamp) = tracker.pending_closures.get(&pubkey_str) {
-                (now.saturating_sub(timestamp)) >= GRACE_PERIOD_SECONDS
+            
+            // Check Grace Period Status
+            let (is_safe_time, reason) = if let Some(&timestamp) = tracker.pending_closures.get(&pubkey_str) {
+                if (now.saturating_sub(timestamp)) >= GRACE_PERIOD_SECONDS {
+                    (true, ReclaimReason::InactiveGracePeriodPassed)
+                } else {
+                    (false, ReclaimReason::GracePeriodActive)
+                }
             } else {
-                // If we've never seen it, mark it now and SKIP closing
                 tracker.pending_closures.insert(pubkey_str.clone(), now);
-                println!("  - Skipping: {} (New Detection - Grace Period Started)", acc.pubkey);
-                false
+                (false, ReclaimReason::NewDetection)
             };
 
-            if is_safe_time {
-                println!("  - Closing Account: {} (Rent: {})", acc.pubkey, acc.lamports);
+            // 3. Decision Matrix
+            let should_close = if force_all {
+                true 
+            } else {
+                !is_allowed && is_safe_time
+            };
+
+            let final_reason = if force_all { ReclaimReason::ForceClosed } else { reason };
+
+            if should_close {
+                println!("  - Account: {} | Reason: {:?} | Action: CLOSING", acc.pubkey, final_reason);
 
                 if execute {
                     match close_account(&rpc_client, &signer, &acc, &signer_pubkey).await {
@@ -244,7 +271,6 @@ async fn reclaim_rent(
                             println!("    ✅ Closed. Sig: {}", sig);
                             reclaimed_rent += acc.lamports;
                             reclaimed_count += 1;
-                            // Remove from tracker after closing
                             tracker.pending_closures.remove(&pubkey_str);
                         }
                         Err(e) => println!("    ❌ Failed: {}", e),
@@ -253,17 +279,18 @@ async fn reclaim_rent(
                     reclaimed_rent += acc.lamports;
                     reclaimed_count += 1;
                 }
-            } else if !is_allowed { 
-                // It was empty, not allowed, but NOT safe time yet.
-                 // We already printed the "New Detection" msg above if it was new.
-                 // If it was existing but young:
-                 if let Some(&timestamp) = tracker.pending_closures.get(&pubkey_str) {
-                     let age = now.saturating_sub(timestamp);
-                     if age < GRACE_PERIOD_SECONDS {
-                         let hours = (GRACE_PERIOD_SECONDS - age) / 3600;
-                         println!("  - Skipping: {} (In Grace Period: {}h left)", acc.pubkey, hours);
-                     }
-                 }
+            } else {
+                // Log why we are skipping
+                let skip_msg = if is_allowed {
+                    "Allowed Payment Token"
+                } else {
+                    match final_reason {
+                        ReclaimReason::NewDetection => "New Detection (Grace Period Started)",
+                        ReclaimReason::GracePeriodActive => "Grace Period Active",
+                        _ => "Unknown",
+                    }
+                };
+                println!("  - Account: {} | Reason: {} | Action: SKIP", acc.pubkey, skip_msg);
             }
         }
     }
