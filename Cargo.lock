@@ -2881,6 +2881,7 @@ dependencies = [
  "kora-lib",
  "log",
  "ratatui",
+ "reqwest",
  "serde",
  "serde_json",
  "solana-account-decoder",

@@ -3,7 +3,8 @@ use std::str::FromStr;
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::path::Path;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH}; // [UPDATED] Added Instant
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::env; // [NEW] To read env vars
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
@@ -43,6 +44,7 @@ use base64::{Engine as _, engine::general_purpose};
 const GRACE_PERIOD_SECONDS: u64 = 24 * 60 * 60; 
 const TRACKER_FILE: &str = "grace_period.json";
 const AUDIT_FILE: &str = "audit_log.csv";
+const HIGH_RENT_THRESHOLD_SOL: f64 = 5.0; // [NEW] Alert Threshold (5 SOL)
 
 // --- Data Structures ---
 
@@ -65,7 +67,6 @@ enum ReclaimReason {
     ForceClosed,
 }
 
-/// Persists the timestamp of when an account was first seen empty.
 #[derive(Serialize, Deserialize, Default)]
 struct GracePeriodTracker {
     pending_closures: HashMap<String, u64>,
@@ -102,10 +103,11 @@ struct AuditRecord {
 // --- TUI Types ---
 
 enum UiEvent {
-    Log(String, String, Color), // (Account, Details, Color)
+    Log(String, String, Color), 
     StatsUpdate { reclaimed: f64, count: u64 },
     Status(String),
     TaskComplete,
+    Alert(bool, f64), // [NEW] Alert Event (IsActive, CurrentAmount)
 }
 
 struct AppState {
@@ -115,6 +117,8 @@ struct AppState {
     status_msg: String,
     spinner_idx: usize,
     is_working: bool,
+    is_high_rent: bool, // [NEW] Dashboard State
+    current_locked_rent: f64, // [NEW] To display in red
 }
 
 enum OperationMode {
@@ -206,11 +210,17 @@ async fn run_tui_task(
                 let _ = tx.send(UiEvent::Status("✅ Task Complete. Press 'q' to quit.".to_string()));
                 let _ = tx.send(UiEvent::TaskComplete);
             },
-            OperationMode::Daemon { interval, force_all } => {
+           OperationMode::Daemon { interval, force_all } => {
                 let cycle_duration = match humantime::parse_duration(&interval) {
                     Ok(d) => d,
                     Err(_) => Duration::from_secs(3600),
                 };
+
+                // [NEW] Heartbeat Timer Setup
+                let mut last_report_time = Instant::now();
+                // Set to 6 hours (or change to 1 hour for more frequent updates)
+                let report_interval = Duration::from_secs(60 * 60 * 6);
+                // let report_interval = Duration::from_secs(60);
 
                 loop {
                     let _ = tx.send(UiEvent::Status("🚀 Daemon Cycle Starting...".to_string()));
@@ -225,17 +235,28 @@ async fn run_tui_task(
                         }
                     }
 
-                    // [UPDATED] Countdown Timer Loop
+                    // [NEW] Heartbeat Check
+                    if last_report_time.elapsed() >= report_interval {
+                        let msg = "📊 Kora Rent Manager Heartbeat\n\n✅ System is active and monitoring accounts.\nWaiting for next cycle.";
+                        
+                        // Send Telegram (Non-blocking)
+                        tokio::spawn(async move { send_telegram_alert(msg).await; });
+                        
+                        // Log to Dashboard
+                        let _ = tx.send(UiEvent::Log("System".to_string(), "❤️ Sending Heartbeat Report".to_string(), Color::Cyan));
+                        
+                        last_report_time = Instant::now();
+                    }
+
+                    // Countdown Timer Loop
                     let start = Instant::now();
                     while start.elapsed() < cycle_duration {
                         let elapsed = start.elapsed();
                         let remaining = cycle_duration.saturating_sub(elapsed);
                         let secs = remaining.as_secs();
                         
-                        // Update UI with countdown
                         let _ = tx.send(UiEvent::Status(format!("💤 Sleeping... Next run in {}s", secs)));
                         
-                        // Sleep for 1s or whatever is left
                         let sleep_step = if remaining > Duration::from_secs(1) {
                             Duration::from_secs(1)
                         } else {
@@ -250,6 +271,7 @@ async fn run_tui_task(
         }
     });
 
+
     let mut app = AppState {
         logs: vec![],
         total_reclaimed_sol: 0.0,
@@ -257,6 +279,8 @@ async fn run_tui_task(
         status_msg: "Initializing...".to_string(),
         spinner_idx: 0,
         is_working: true,
+        is_high_rent: false, // [NEW] Default state
+        current_locked_rent: 0.0,
     };
 
     loop {
@@ -274,6 +298,10 @@ async fn run_tui_task(
                 },
                 UiEvent::Status(msg) => app.status_msg = msg,
                 UiEvent::TaskComplete => app.is_working = false,
+                UiEvent::Alert(is_active, amount) => { // [NEW] Handle Alert
+                    app.is_high_rent = is_active;
+                    app.current_locked_rent = amount;
+                }
             }
         }
 
@@ -323,13 +351,20 @@ fn ui(f: &mut Frame, app: &AppState) {
         .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
         .split(chunks[1]);
 
+    // [NEW] Alert Logic for Color
+    let (alert_color, alert_title) = if app.is_high_rent {
+        (Color::Red, "⚠️ HIGH RENT ALERT")
+    } else {
+        (Color::Green, " Performance Metrics ")
+    };
+
     let kpi_text = vec![
-        Line::from(vec![Span::raw("Reclaimed SOL: "), Span::styled(format!("{:.4}", app.total_reclaimed_sol), Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))]),
+        Line::from(vec![Span::raw("Reclaimed SOL:   "), Span::styled(format!("{:.4}", app.total_reclaimed_sol), Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))]),
+        Line::from(vec![Span::raw("Current Locked:  "), Span::styled(format!("{:.4} SOL", app.current_locked_rent), Style::default().fg(alert_color).add_modifier(Modifier::BOLD))]),
         Line::from(vec![Span::raw("Accounts Closed: "), Span::styled(format!("{}", app.reclaimed_count), Style::default().fg(Color::Yellow))]),
-        Line::from(vec![Span::raw("Status: "), Span::raw(&app.status_msg)]),
     ];
     let kpi_block = Paragraph::new(kpi_text)
-        .block(Block::default().title(" Performance Metrics ").borders(Borders::ALL));
+        .block(Block::default().title(alert_title).borders(Borders::ALL).border_style(Style::default().fg(alert_color)));
     f.render_widget(kpi_block, stats_chunks[0]);
 
     let gauge = Gauge::default()
@@ -363,13 +398,58 @@ fn ui(f: &mut Frame, app: &AppState) {
     f.render_widget(t, chunks[2]);
 
     // 4. Footer
-    let footer = Paragraph::new(" Press 'q' to quit ")
+    let footer = Paragraph::new(format!(" {} | Press 'q' to quit ", app.status_msg))
         .style(Style::default().fg(Color::DarkGray))
         .alignment(Alignment::Center);
     f.render_widget(footer, chunks[3]);
 }
 
 // --- Logic Helpers ---
+
+// [NEW] Telegram Sender
+async fn send_telegram_alert(message: &str) {
+    let token = match env::var("KORA_TG_TOKEN") {
+        Ok(t) => t,
+        Err(_) => return, // Silent fail if not configured
+    };
+    let chat_id = match env::var("KORA_TG_CHAT_ID") {
+        Ok(id) => id,
+        Err(_) => return,
+    };
+
+    let url = format!("https://api.telegram.org/bot{}/sendMessage", token);
+    let client = reqwest::Client::new();
+    let params = [("chat_id", chat_id.as_str()), ("text", message)];
+
+    if let Err(e) = client.post(&url).form(&params).send().await {
+        eprintln!("Failed to send Telegram: {}", e);
+    }
+}
+
+// [NEW] Sends a "Dashboard Snapshot" to Telegram
+async fn send_status_report(
+    reclaimed_sol: f64, 
+    locked_sol: f64, 
+    count: u64
+) {
+    let efficiency = if (reclaimed_sol + locked_sol) > 0.0 {
+        (reclaimed_sol / (reclaimed_sol + locked_sol)) * 100.0
+    } else {
+        0.0
+    };
+
+    let msg = format!(
+        "📊 *Kora Rent Manager Report*\n\n\
+        🟢 *System:* Online\n\
+        💰 *Total Reclaimed:* `{:.4} SOL`\n\
+        🔒 *Current Locked:* `{:.4} SOL`\n\
+        📉 *Efficiency:* `{:.1}%`\n\
+        📦 *Accounts Processed:* `{}`",
+        reclaimed_sol, locked_sol, efficiency, count
+    );
+
+    send_telegram_alert(&msg).await;
+}
 
 macro_rules! log_output {
     ($tx:expr, $acc:expr, $details:expr, $color:expr) => {
@@ -474,6 +554,7 @@ async fn reclaim_rent(
 
     let mut reclaimed_rent = 0;
     let mut reclaimed_count = 0;
+    let mut locked_rent_accumulated = 0; // Track for Alerts
 
     for signer_info in signers_info {
         let signer_pubkey = signer_info.public_key.parse::<Pubkey>().unwrap();
@@ -487,6 +568,10 @@ async fn reclaim_rent(
 
         for acc in accounts {
             let pubkey_str = acc.pubkey.to_string();
+
+            if acc.amount == 0 {
+                locked_rent_accumulated += acc.lamports;
+            }
 
             if acc.amount != 0 { 
                 tracker.pending_closures.remove(&pubkey_str);
@@ -561,12 +646,35 @@ async fn reclaim_rent(
         }
     }
 
+    // [NEW] Alert Logic
+    let current_locked_sol = lamports_to_sol(locked_rent_accumulated);
+    if let Some(ref t) = tx {
+        if current_locked_sol > HIGH_RENT_THRESHOLD_SOL {
+            // Visual Alert
+            let _ = t.send(UiEvent::Alert(true, current_locked_sol));
+            let _ = t.send(UiEvent::Log("ALERT".to_string(), format!("High Rent Idle: {:.2} SOL", current_locked_sol), Color::Red));
+            
+            // Telegram Alert (Non-blocking)
+            let msg = format!("🚨 *High Idle Rent Detected!*\n\nAmount: `{:.2} SOL`\nThreshold: `{:.2} SOL`", current_locked_sol, HIGH_RENT_THRESHOLD_SOL);
+            tokio::spawn(async move { send_telegram_alert(&msg).await; });
+        } else {
+            // Clear Alert
+            let _ = t.send(UiEvent::Alert(false, current_locked_sol));
+        }
+    }
+
     if reclaimed_count == 0 {
         log_output!(&tx, "SUMMARY".to_string(), "No accounts found eligible for reclaim.".to_string(), Color::Yellow);
     } else {
         let label = if execute { "RECLAIMED" } else { "DRY RUN" };
         let color = if execute { Color::Green } else { Color::Cyan };
         log_output!(&tx, label.to_string(), format!("{} Accts ({:.4} SOL)", reclaimed_count, lamports_to_sol(reclaimed_rent)), color);
+        
+        // Notify success if execute
+        if execute {
+             let msg = format!("✅ *Kora Reclaim Success*\n\nClosed: {}\nRecovered: `{:.4} SOL`", reclaimed_count, lamports_to_sol(reclaimed_rent));
+             tokio::spawn(async move { send_telegram_alert(&msg).await; });
+        }
     }
 
     Ok(())
