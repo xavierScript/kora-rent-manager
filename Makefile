@@ -25,6 +25,9 @@ RPC = https://api.devnet.solana.com
 CONFIG = kora.toml
 SIGNERS = signers.toml
 
+# Default to 60s if the user doesn't specify one
+INTERVAL ?= 60s
+
 # Commands
 .PHONY: scan run stats reclaim
 
@@ -32,9 +35,9 @@ SIGNERS = signers.toml
 scan:
 	kora --rpc-url $(RPC) --config $(CONFIG) rent-manager scan --all --signers-config $(SIGNERS)
 
-# Short command: "make run" (Daemon Mode)
+# Dynamic Run Command. Short command: "make run INTERVAL=5m", "make run INTERVAL=5h", etc
 run:
-	kora --rpc-url $(RPC) --config $(CONFIG) rent-manager run --interval 10s --signers-config $(SIGNERS)
+	kora --rpc-url $(RPC) --config $(CONFIG) rent-manager run --interval $(INTERVAL) --signers-config $(SIGNERS)
 
 # Short command: "make stats"
 stats:

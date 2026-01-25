@@ -3,7 +3,7 @@ use std::str::FromStr;
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::path::Path;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH}; // [UPDATED] Added Instant
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
@@ -65,6 +65,7 @@ enum ReclaimReason {
     ForceClosed,
 }
 
+/// Persists the timestamp of when an account was first seen empty.
 #[derive(Serialize, Deserialize, Default)]
 struct GracePeriodTracker {
     pending_closures: HashMap<String, u64>,
@@ -101,7 +102,7 @@ struct AuditRecord {
 // --- TUI Types ---
 
 enum UiEvent {
-    Log(String, String, Color), 
+    Log(String, String, Color), // (Account, Details, Color)
     StatsUpdate { reclaimed: f64, count: u64 },
     Status(String),
     TaskComplete,
@@ -206,7 +207,7 @@ async fn run_tui_task(
                 let _ = tx.send(UiEvent::TaskComplete);
             },
             OperationMode::Daemon { interval, force_all } => {
-                let duration = match humantime::parse_duration(&interval) {
+                let cycle_duration = match humantime::parse_duration(&interval) {
                     Ok(d) => d,
                     Err(_) => Duration::from_secs(3600),
                 };
@@ -218,14 +219,32 @@ async fn run_tui_task(
                     match reclaim_rent(rpc_bg.clone(), &pool_bg, true, force_all, &mut daemon_tracker, Some(tx.clone())).await {
                         Ok(_) => {
                             daemon_tracker.save();
-                            let _ = tx.send(UiEvent::Status(format!("💤 Sleeping for {}", interval)));
                         },
                         Err(e) => {
                             let _ = tx.send(UiEvent::Log("System".to_string(), format!("⚠️ Job Failed: {}", e), Color::Red));
-                            let _ = tx.send(UiEvent::Status("⚠️ Error. Retrying...".to_string()));
                         }
                     }
-                    tokio::time::sleep(duration).await;
+
+                    // [UPDATED] Countdown Timer Loop
+                    let start = Instant::now();
+                    while start.elapsed() < cycle_duration {
+                        let elapsed = start.elapsed();
+                        let remaining = cycle_duration.saturating_sub(elapsed);
+                        let secs = remaining.as_secs();
+                        
+                        // Update UI with countdown
+                        let _ = tx.send(UiEvent::Status(format!("💤 Sleeping... Next run in {}s", secs)));
+                        
+                        // Sleep for 1s or whatever is left
+                        let sleep_step = if remaining > Duration::from_secs(1) {
+                            Duration::from_secs(1)
+                        } else {
+                            remaining
+                        };
+                        
+                        if sleep_step.is_zero() { break; }
+                        tokio::time::sleep(sleep_step).await;
+                    }
                 }
             }
         }
