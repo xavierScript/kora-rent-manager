@@ -73,7 +73,6 @@ cargo build --release
 Signers Config: Ensure your signers.toml points to your operator keypair.
 
 Telegram Alerts (Optional): Export your bot credentials to receive phone notifications.
-
 ```bash
 export KORA_TG_TOKEN="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
 export KORA_TG_CHAT_ID="987654321"
@@ -84,21 +83,18 @@ We provide a Makefile for easy operation.
 
 ### 1. 🔍 Scan (Read-Only)
 View the state of your accounts without sending transactions. This populates the Dashboard with "Pending" or "Funded" statuses.
-
 ```bash
 make scan
 ```
 
 ### 2. ⚡ Reclaim (Action)
 Execute the cleanup. This will only close accounts that have passed the 24h Grace Period.
-
 ```bash
 make reclaim
 ```
 
 ### 3. 🤖 Run Daemon (Background Service)
 Run the bot continuously. It will sleep for the specified interval (default 10s) and wake up to process accounts.
-
 ```bash
 # Run with default 10s interval
 make run
@@ -128,7 +124,6 @@ Live Logs: Detailed color-coded logs of every account checked.
 
 ### The Audit Log
 Check audit_log.csv for a permanent record:
-
 ```
 timestamp,date_utc,account,mint,action,reason,rent_reclaimed_sol,signature
 1706131200,2024-01-25T00:00:00Z,4xp...JQc,DD6...f62,RECLAIMED,InactiveGracePeriodPassed,0.0020,5Mz...123
@@ -145,5 +140,7 @@ timestamp,date_utc,account,mint,action,reason,rent_reclaimed_sol,signature
 
 ## ⚠️ Disclaimer
 This tool deals with private keys and account deletion. While a 24-hour safety mechanism is implemented, please run make scan first to verify the state of your accounts. Use at your own risk.
+
+Licensed under MIT. See [LICENSE](LICENSE) for details.
 
 Built with ❤️ by xavierScript.
