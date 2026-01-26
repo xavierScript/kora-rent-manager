@@ -1,4 +1,3 @@
-```markdown
 # 🛡️ Kora Rent Manager
 
 [![Rust](https://img.shields.io/badge/Built_with-Rust-orange?style=flat-square&logo=rust)](https://www.rust-lang.org/)
@@ -148,4 +147,3 @@ timestamp,date_utc,account,mint,action,reason,rent_reclaimed_sol,signature
 This tool deals with private keys and account deletion. While a 24-hour safety mechanism is implemented, please run make scan first to verify the state of your accounts. Use at your own risk.
 
 Built with ❤️ by xavierScript.
-```
