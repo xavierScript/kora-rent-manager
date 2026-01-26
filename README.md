@@ -1,170 +1,151 @@
-<div align="center">
-  <br />
-  <img src="./kora.svg" alt="Kora" width="140" />
-  <br />
-  <br />
-  
-  <h3>Kora: Solana Signing Infrastructure</h3>
-    
-  <br />
-  
-[![Rust Tests](https://github.com/solana-foundation/kora/actions/workflows/rust.yml/badge.svg)](https://github.com/solana-foundation/kora/actions/workflows/rust.yml)
-![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/solana-foundation/kora/main/.github/badges/coverage.json)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/solana-foundation/kora)
-[![Crates.io](https://img.shields.io/crates/v/kora-cli.svg)](https://crates.io/crates/kora-cli)
-[![npm](https://img.shields.io/npm/v/@solana/kora)](https://www.npmjs.com/package/@solana/kora)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+```markdown
+# 🛡️ Kora Rent Manager
 
-  <br />
-  <br />
-</div>
+[![Rust](https://img.shields.io/badge/Built_with-Rust-orange?style=flat-square&logo=rust)](https://www.rust-lang.org/)
+[![Solana](https://img.shields.io/badge/Solana-Devnet%2FMainnet-green?style=flat-square&logo=solana)](https://solana.com/)
+[![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
 
-> **Branch Update (Jan 6, 2025):** We migrated pre-release features to [`release/2.2.0`](https://github.com/solana-foundation/kora/tree/release/2.2.0). The `main` branch now only contains audited releases plus minor hotfixes/docs. See [v2.0.1](https://github.com/solana-foundation/kora/releases/tag/v2.0.1) for the latest stable release.
-
-**Kora is your Solana signing infrastructure.** Enable gasless transactions where users pay fees in any token—USDC, BONK, or your app's native token—or handle any transaction signing that requires a trusted signer.
-
-### Why Kora?
-
-- **Better UX**: Users never need SOL
-- **Revenue Control**: Collect fees in USDC, your token, or anything else
-- **Production Ready**: Secure validation, rate limiting, monitoring built-in
-- **Easy Integration**: JSON-RPC API + TypeScript SDK
-- **Flexible Deployment**: Railway, Docker, or any cloud platform
-
-### Architecture
-
-- **Language**: Rust with TypeScript SDK
-- **Protocol**: JSON-RPC 2.0
-- **Signers**: Solana Private Key, Turnkey, Privy
-- **Authentication**: API Key, HMAC, or none
-- **Deployment**: Flexible deployment options (Docker, Railway, etc.)
-
-### Features
-
-- Configurable validation rules and allowlists
-- Full Token-2022 support with extension filtering
-- Redis caching for improved performance
-- Rate limiting and spend protection
-- Secure key management (Turnkey, Privy, Vault)
-- HMAC and API key authentication
-- Prometheus metrics and monitoring
-- Enhanced fee payer protection policies
-
-## Quick Start
-
-Install Kora:
-
-```bash
-cargo install kora-cli
-```
-
-Basic usage:
-
-```bash
-kora rpc [OPTIONS] # --help for full list of options
-```
-
-**[→ Full Documentation](https://launch.solana.com/docs/kora/getting-started)** - Learn how Kora works
-
-**[→ Quick Start Guide](https://launch.solana.com/docs/kora/getting-started/quick-start)** - Get Kora running locally minutes
-
-**[→ Node Operator Guide](https://launch.solana.com/docs/kora/operators)** - Run a paymaster
-
-## TypeScript SDK
-
-Kora provides a simple JSON-RPC interface:
-
-```typescript
-// Initialize Kora client
-import { KoraClient } from "@solana/kora";
-const kora = new KoraClient({ rpcUrl: "http://localhost:8080" });
-
-// Sign transaction as paymaster
-const signed = await kora.signTransaction({ transaction });
-```
-
-**[→ API Reference](https://launch.solana.com/docs/kora/json-rpc-api)**
-
-## Local Development
-
-### Prerequisites
-
-- Rust 1.86+ or
-- Solana CLI 2.2+
-- Node.js 20+ and pnpm (for SDK)
-
-### Installation
-
-```bash
-git clone https://github.com/solana-foundation/kora.git
-cd kora
-make install
-```
-
-### Build
-
-```bash
-make build
-```
-
-### Running the Server
-
-Basic usage:
-
-```bash
-kora rpc [OPTIONS]
-```
-
-Or for running with a test configuration, run:
-
-```bash
-make run
-```
-
-### Local Testing
-
-And run all tests:
-
-```bash
-make test-all
-```
-
-## Repository Structure
-
-```
-kora/
-├── crates/                   # Rust workspace
-│   ├── kora-lib/             # Core library with RPC server (signers, validation, transactions)
-│   └── kora-cli/             # Command-line interface and RPC server
-├── sdks/                     # Client SDKs
-│   └── ts/                   # TypeScript SDK
-├── tests/                    # Integration tests
-├── docs/                     # Documentation
-│   ├── getting-started/      # Quick start guides
-│   └── operators/            # Node operator documentation
-├── Makefile                  # Build and development commands
-└── kora.toml                 # Example configuration
-```
-
-## Security Audit
-
-Kora has been audited by [Runtime Verification](https://runtimeverification.com/). View the [audit report](audits/20251119_runtime-verification.pdf). (Audited up to commit [8c592591](https://github.com/solana-foundation/kora/commit/8c592591debd08424a65cc471ce0403578fd5d5d))
-
-**Note:** Kora uses the `solana-keychain` package which has not been audited. Use at your own risk.
-
-## Community & Support
-
-- **Questions?** Ask on [Solana Stack Exchange](https://solana.stackexchange.com/) (use the `kora` tag)
-- **Issues?** Report on [GitHub Issues](https://github.com/solana-foundation/kora/issues)
-
-## Other Resources
-
-- [Kora CLI Crates.io](https://crates.io/crates/kora-cli) - Rust crate for running a Kora node
-- [Kora Lib Crates.io](https://crates.io/crates/kora-lib) - Rust crate for the Kora library
-- [@solana/kora](https://www.npmjs.com/package/@solana/kora) - TypeScript SDK for Kora
+> **Automated Treasury Recovery for Kora Node Operators.**
+> *Monitor, detect, and reclaim idle rent-locked SOL with safety and clarity.*
 
 ---
 
-Built and maintained by the [Solana Foundation](https://solana.org).
+## 📺 Demo & Deep Dive
+**[▶️ WATCH THE LIVE WALKTHROUGH VIDEO HERE]**
+*(Replace this line with your YouTube/Loom link. This is a mandatory requirement!)*
 
-Licensed under MIT. See [LICENSE](LICENSE) for details.
+---
+
+## 🚨 The Problem: Silent Capital Loss
+Kora makes onboarding users to Solana seamless by sponsoring account creation fees. However, this convenience creates an operational gap: **Rent-Locked SOL**.
+
+When a Kora node creates a Token Account for a user, it deposits ~0.002 SOL (Rent Exempt Minimum).
+* If 1,000 users churn or empty their wallets, **2 SOL** remains locked on-chain.
+* If 100,000 users churn, **200 SOL** is lost to "zombie" accounts.
+
+Operators rarely have the time to manually audit thousands of accounts, check balances, and sign close transactions.
+
+## 🛠️ The Solution: Kora Rent Manager
+This tool is a **set-and-forget** CLI utility and background service designed to close this operational gap. It provides a visual dashboard to monitor rent status and an automated daemon to reclaim funds safely.
+
+### Key Features
+* **📊 TUI Dashboard:** Real-time visualization of cycle efficiency, reclaimed funds, and active tasks using `Ratatui`.
+* **🛡️ Safety Grace Period:** Built-in tracking ensures newly detected empty accounts are **never** closed immediately. They must remain empty for **24 hours** before being flagged as reclaimable.
+* **📲 Telegram Alerts:** Passive monitoring. Get notified on your phone if idle rent exceeds a threshold (e.g., 5 SOL) or if a reclaim cycle succeeds.
+* **💓 Heartbeat Reporting:** The daemon sends periodic "System Alive" snapshots to Telegram, ensuring operators know the bot is active without checking the terminal.
+* **📜 Audit Trail:** Every action is logged to `audit_log.csv` for financial reconciliation.
+* **⚙️ Configurable:** Customize scan intervals, thresholds, and whitelists via environment variables and CLI args.
+
+---
+
+## 🧠 Technical Context: How It Works
+
+### Solana Rent Mechanics
+On Solana, every account must hold a minimum amount of SOL (approx. 0.002039 SOL) to remain "rent-exempt." If an account has 0 tokens but still holds this SOL, it is essentially wasting space and money.
+
+### The Reclaim Logic
+The bot performs the following cycle:
+1.  **Scan:** It queries the RPC for all Token Accounts owned by the configured Signer.
+2.  **Filter:** It identifies accounts with `amount: 0` (Empty).
+3.  **Safety Check (The Tracker):**
+    * *Is this account whitelisted?* (Skip)
+    * *Is this the first time we've seen it empty?* (Mark as "Pending", start 24h timer).
+    * *Has it been empty for >24 hours?* (Mark as "Reclaimable").
+4.  **Execution:** If enabled, it constructs a `closeAccount` instruction, signs it with the operator's keypair, and sends it to the network.
+5.  **Alerting:** If the total rent reclaimed > 0 or total locked rent > Threshold, it fires a notification.
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+* Rust installed (`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`)
+* Solana CLI installed (optional, for key management)
+* A Kora Node Operator Keypair (`.json` file)
+
+### Installation
+```bash
+git clone [https://github.com/YOUR_USERNAME/kora-rent-manager.git](https://github.com/YOUR_USERNAME/kora-rent-manager.git)
+cd kora-rent-manager
+cargo build --release
+```
+
+### Configuration
+Signers Config: Ensure your signers.toml points to your operator keypair.
+
+Telegram Alerts (Optional): Export your bot credentials to receive phone notifications.
+
+```bash
+export KORA_TG_TOKEN="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+export KORA_TG_CHAT_ID="987654321"
+```
+
+## 🎮 Usage Guide
+We provide a Makefile for easy operation.
+
+### 1. 🔍 Scan (Read-Only)
+View the state of your accounts without sending transactions. This populates the Dashboard with "Pending" or "Funded" statuses.
+
+```bash
+make scan
+```
+
+### 2. ⚡ Reclaim (Action)
+Execute the cleanup. This will only close accounts that have passed the 24h Grace Period.
+
+```bash
+make reclaim
+```
+
+### 3. 🤖 Run Daemon (Background Service)
+Run the bot continuously. It will sleep for the specified interval (default 10s) and wake up to process accounts.
+
+```bash
+# Run with default 10s interval
+make run
+
+# Run with custom interval (e.g., 1 hour)
+make run INTERVAL=1h
+```
+
+## 📊 Dashboard & Monitoring
+
+### The TUI (Terminal User Interface)
+When running, the bot displays a rich terminal interface:
+
+Performance Metrics: Real-time counter of SOL reclaimed.
+
+Cycle Efficiency: A gauge showing how "optimized" your treasury is.
+
+Live Logs: Detailed color-coded logs of every account checked.
+
+<span style="color:yellow">YELLOW</span>: Account is empty but inside Grace Period.
+
+<span style="color:green">GREEN</span>: Account successfully closed & rent recovered.
+
+<span style="color:grey">GREY</span>: Account is funded (Skipped).
+
+<span style="color:red">RED</span>: High Rent Alert or Error.
+
+### The Audit Log
+Check audit_log.csv for a permanent record:
+
+```
+timestamp,date_utc,account,mint,action,reason,rent_reclaimed_sol,signature
+1706131200,2024-01-25T00:00:00Z,4xp...JQc,DD6...f62,RECLAIMED,InactiveGracePeriodPassed,0.0020,5Mz...123
+```
+
+## 🏆 Submission Checklist
+- [x] Monitors Accounts: Scans all token accounts for specific signers.
+- [x] Detects Inactive: Filters for 0 balance & tracks inactivity duration.
+- [x] Reclaims Rent: Uses spl_token::instruction::close_account.
+- [x] Open Source: MIT License.
+- [x] Safety: 24-hour Grace Period Tracker (grace_period.json).
+- [x] Clarity: TUI Dashboard + CSV Audit Trail.
+- [x] Alerts: Visual Dashboard Alerts + Telegram Push Notifications + Heartbeat Reports.
+
+## ⚠️ Disclaimer
+This tool deals with private keys and account deletion. While a 24-hour safety mechanism is implemented, please run make scan first to verify the state of your accounts. Use at your own risk.
+
+Built with ❤️ by xavierScript.
+```
