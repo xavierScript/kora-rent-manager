@@ -167,7 +167,7 @@ This tool deals with private keys and account deletion. While a 24-hour safety m
 
 ---
 
-Licensed under MIT, following the original license by Kora.
+Licensed under MIT, following the original License by Kora.
 
 ---
 
