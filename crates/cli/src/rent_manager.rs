@@ -325,6 +325,8 @@ async fn run_tui_task(
     Ok(())
 }
 
+// --- TUI Logic ---
+
 fn ui(f: &mut Frame, app: &AppState) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -401,6 +403,7 @@ fn ui(f: &mut Frame, app: &AppState) {
 
 // --- Logic Helpers ---
 
+// Telegram Alert Sender
 async fn send_telegram_alert(message: &str) {
     let token = match env::var("KORA_TG_TOKEN") {
         Ok(t) => t,
@@ -420,6 +423,7 @@ async fn send_telegram_alert(message: &str) {
     }
 }
 
+// Status Report Sender
 async fn send_status_report(
     reclaimed_sol: f64, 
     locked_sol: f64, 
@@ -454,6 +458,7 @@ macro_rules! log_output {
     };
 }
 
+// Scan Accounts Logic
 async fn scan_accounts(
     rpc_client: Arc<RpcClient>,
     signer_pool: &SignerPool,
@@ -533,13 +538,13 @@ async fn scan_accounts(
     Ok(())
 }
 
-// [UPDATED] Function now takes `show_skipped` parameter
+// Reclaim Rent Logic
 async fn reclaim_rent(
     rpc_client: Arc<RpcClient>,
     signer_pool: &SignerPool,
     execute: bool,
     force_all: bool,
-    show_skipped: bool, // <--- New Param to control verbosity
+    show_skipped: bool, 
     tracker: &mut GracePeriodTracker,
     tx: Option<mpsc::UnboundedSender<UiEvent>>,
 ) -> Result<(), KoraError> {
@@ -701,6 +706,7 @@ async fn reclaim_rent(
     Ok(())
 }
 
+// Stats Logic
 async fn show_stats(
     rpc_client: Arc<RpcClient>,
     signer_pool: &SignerPool,
@@ -769,6 +775,7 @@ async fn show_stats(
     Ok(())
 }
 
+// Audit Log Writer
 fn log_to_audit_trail(record: &AuditRecord) {
     let file_exists = Path::new(AUDIT_FILE).exists();
     let file = OpenOptions::new()
@@ -787,6 +794,7 @@ fn log_to_audit_trail(record: &AuditRecord) {
     wtr.flush().unwrap();
 }
 
+// Fetch All Token Accounts for an Owner
 async fn fetch_all_token_accounts(
     rpc_client: &RpcClient,
     owner: &Pubkey,
@@ -813,6 +821,7 @@ async fn fetch_all_token_accounts(
     Ok(all_accounts)
 }
 
+// Parse Token Account Data
 fn parse_token_account_data(data: &UiAccountData) -> Option<(u64, Pubkey)> {
     match data {
         UiAccountData::Json(parsed) => {
@@ -835,6 +844,7 @@ fn parse_token_account_data(data: &UiAccountData) -> Option<(u64, Pubkey)> {
     }
 }
 
+// Close Token Account Logic
 async fn close_account(
     rpc_client: &RpcClient,
     signer: &Arc<impl SolanaSigner>, 
@@ -876,6 +886,7 @@ fn get_allowed_tokens() -> Result<(Vec<Pubkey>, bool), KoraError> {
     Ok((tokens, is_all))
 }
 
+// Lamports to SOL Converter
 fn lamports_to_sol(lamports: u64) -> f64 {
     lamports as f64 / 1_000_000_000.0
 }

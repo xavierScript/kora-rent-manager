@@ -115,7 +115,7 @@ async fn main() {
             println!("Created Zero-Balance Account: {} for Mint: {}", ata_pubkey, mint_pubkey);
             println!("---------------------------------------------------");
             println!("Now run:");
-            println!("kora --config kora.toml rent-manager scan --signers-config signers.toml");
+            println!("make scan");
         },
         Err(e) => {
             println!("❌ Failed: {}", e);
