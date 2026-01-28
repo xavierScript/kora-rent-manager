@@ -48,14 +48,15 @@ use base64::{Engine as _, engine::general_purpose};
 
 // Safety Mechanism: Accounts must be empty for 24 hours before we reclaim them.
 // This prevents deleting accounts that were just created but not yet funded.
-const GRACE_PERIOD_SECONDS: u64 = 24 * 60 * 60; 
+// const GRACE_PERIOD_SECONDS: u64 = 24 * 60 * 60; 
+const GRACE_PERIOD_SECONDS: u64 = 60; 
 
 // File paths for persistence and logging
 const TRACKER_FILE: &str = "grace_period.json";
 const AUDIT_FILE: &str = "audit_log.csv";
 
 // Threshold to trigger a "High Rent" alert (Visual + Telegram)
-const HIGH_RENT_THRESHOLD_SOL: f64 = 5.0; 
+const HIGH_RENT_THRESHOLD_SOL: f64 = 1.0; 
 
 // --- Data Structures ---
 
@@ -147,7 +148,7 @@ struct AppState {
 enum OperationMode {
     Scan { all: bool },
     Reclaim { execute: bool, force_all: bool },
-    Daemon { interval: String, force_all: bool },
+    Daemon { interval: String },
 }
 
 // --- Main Handler ---
@@ -191,9 +192,9 @@ pub async fn handle_rent_manager(
             // Launches TUI in Active mode (Dry Run or Execute)
             run_tui_task(rpc_client, signer_pool, OperationMode::Reclaim { execute, force_all }).await?;
         },
-        RentManagerCommands::Run { interval, force_all, .. } => {
+        RentManagerCommands::Run { interval, .. } => {
             // Launches the Long-Running Daemon
-            run_tui_task(rpc_client, signer_pool, OperationMode::Daemon { interval, force_all }).await?;
+            run_tui_task(rpc_client, signer_pool, OperationMode::Daemon { interval }).await?;
         }
     }
 
@@ -252,7 +253,7 @@ async fn run_tui_task(
                 let _ = tx.send(UiEvent::TaskComplete);
             },
             // Mode: Daemon (Continuous Loop)
-            OperationMode::Daemon { interval, force_all } => {
+            OperationMode::Daemon { interval } => {
                 let cycle_duration = match humantime::parse_duration(&interval) {
                     Ok(d) => d,
                     Err(_) => Duration::from_secs(3600),
@@ -261,22 +262,10 @@ async fn run_tui_task(
                 // Heartbeat Timer Setup (Telegram Report)
                 let mut last_report_time = Instant::now();
                 // Send a "System Alive" message every 6 hours
-                let report_interval = Duration::from_secs(60 * 60 * 6);
+                let report_interval = Duration::from_secs(60);
 
                 loop {
                     let _ = tx.send(UiEvent::Status("🚀 Daemon Cycle Starting...".to_string()));
-                    
-                    // Reload tracker every cycle to pick up any manual edits
-                    let mut daemon_tracker = GracePeriodTracker::load();
-                    
-                    match reclaim_rent(rpc_bg.clone(), &pool_bg, true, force_all, &mut daemon_tracker, Some(tx.clone())).await {
-                        Ok(_) => {
-                            daemon_tracker.save();
-                        },
-                        Err(e) => {
-                            let _ = tx.send(UiEvent::Log("System".to_string(), format!("⚠️ Job Failed: {}", e), Color::Red));
-                        }
-                    }
 
                     // Telegram Heartbeat Check
                     if last_report_time.elapsed() >= report_interval {
@@ -949,6 +938,7 @@ fn get_allowed_tokens() -> Result<(Vec<Pubkey>, bool), KoraError> {
     Ok((tokens, is_all))
 }
 
+// Converts lamports to SOL for easier readability
 fn lamports_to_sol(lamports: u64) -> f64 {
     lamports as f64 / 1_000_000_000.0
 }

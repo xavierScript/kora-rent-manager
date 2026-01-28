@@ -62,7 +62,7 @@ pub enum RentManagerCommands {
         #[arg(long, default_value_t = false)]
         force_all: bool,
     },
-    /// Run as a background bot (Automatic Reclaim)
+    /// Run as a background bot
     Run {
         #[command(flatten)]
         rpc_args: Box<RpcArgs>,
@@ -70,10 +70,6 @@ pub enum RentManagerCommands {
         /// Check interval (e.g., "6h", "30m", "1d")
         #[arg(long, default_value = "6h")]
         interval: String,
-
-        /// Close ALL empty accounts, even if they are for allowed tokens
-        #[arg(long, default_value_t = false)]
-        force_all: bool,
     },
     /// Show rent efficiency statistics
     Stats {
