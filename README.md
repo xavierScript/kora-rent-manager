@@ -12,7 +12,7 @@
 ## 📺 Demo & Deep Dive
 
 **[▶️ WATCH THE LIVE WALKTHROUGH VIDEO HERE]**
-_(Replace this line with your YouTube/Loom link. This is a mandatory requirement!)_
+_(Replace this line with your YouTube/Loom link.)_
 
 ---
 
