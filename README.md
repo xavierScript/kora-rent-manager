@@ -100,29 +100,236 @@ The bot performs the following cycle:
 
 ## 🚀 Getting Started
 
-### Prerequisites
+### System Requirements
 
-- Rust installed (`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`)
-- Solana CLI installed (optional, for key management)
-- A Kora Node Operator Keypair (`.json` file)
+#### For Kora Rent Manager (Server)
+
+- **Rust:** Version 1.86 or higher
+- **Make:** Command-line build utility
+- **Kora CLI:** For operating a Kora node
+
+#### For TypeScript SDK (Client Applications)
+
+- **Node.js:** Version LTS or higher
+- **TypeScript:** Latest version
+
+#### Optional Dependencies
+
+- **Solana CLI:** Helpful for key generation and testing
+- **Docker:** For containerized deployments
+
+---
+
+### Prerequisites Installation
+
+#### 1. Install Rust
+
+If you don't have Rust installed, install it using `rustup`:
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source $HOME/.cargo/env
+```
+
+Verify installation:
+
+```bash
+rustc --version  # Should show 1.86 or higher
+cargo --version
+```
+
+#### 2. Install Make
+
+**macOS:**
+
+```bash
+xcode-select --install
+```
+
+**Linux (Ubuntu/Debian):**
+
+```bash
+sudo apt-get update
+sudo apt-get install build-essential
+```
+
+**Linux (Fedora/RHEL):**
+
+```bash
+sudo dnf install make
+```
+
+**Windows:**
+
+- Install via [Chocolatey](https://chocolatey.org/): `choco install make`
+- Or use [WSL](https://docs.microsoft.com/en-us/windows/wsl/install) for a Linux environment
+
+Verify installation:
+
+```bash
+make --version
+```
+
+#### 3. Install Kora CLI
+
+The Kora CLI is required for operating a Kora node. Install directly from crates.io:
+
+```bash
+cargo install kora-cli
+```
+
+Verify installation:
+
+```bash
+kora --version
+```
+
+#### 4. Install Solana CLI (Optional but Recommended)
+
+The Solana CLI is useful for key generation and testing:
+
+```bash
+sh -c "$(curl -sSfL https://release.solana.com/stable/install)"
+```
+
+Add Solana to your PATH (add to `~/.bashrc` or `~/.zshrc`):
+
+```bash
+export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+```
+
+Verify installation:
+
+```bash
+solana --version
+```
+
+---
 
 ### Installation
+
+#### Clone the Repository
 
 ```bash
 git clone https://github.com/YOUR_USERNAME/kora-rent-manager.git
 cd kora-rent-manager
+```
+
+#### Build the Project
+
+```bash
 cargo build --release
 ```
 
+The compiled binary will be available at `./target/release/kora-rent-manager`.
+
+---
+
 ### Configuration
 
-**Signers Config:** Ensure your `signers.toml` points to your operator keypair.
+#### 1. Create Environment File
 
-**Telegram Alerts (Optional):** Export your bot credentials to receive phone notifications.
+Create a `.env` file in the project root:
 
 ```bash
-export KORA_TG_TOKEN="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
-export KORA_TG_CHAT_ID="987654321"
+touch .env
+```
+
+#### 2. Set Environment Variables
+
+Add the following to your `.env` file:
+
+```dotenv
+# ========================================
+# KORA NODE OPERATOR CONFIGURATION
+# ========================================
+
+# Private Key Signer (Your Kora Operator Keypair)
+# This can be either:
+# - A base58-encoded private key string
+# - Or use the signers.toml file (recommended for security)
+KORA_PRIVATE_KEY=your_base58_private_key_here
+
+# RPC Endpoint (Optional - defaults to devnet)
+# SOLANA_RPC_URL=https://api.devnet.solana.com
+
+# ========================================
+# TELEGRAM ALERTS (OPTIONAL)
+# ========================================
+
+# Get your bot token from @BotFather on Telegram
+KORA_TG_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
+
+# Your Telegram Chat ID (get from @userinfobot)
+KORA_TG_CHAT_ID=987654321
+
+# ========================================
+# OPERATIONAL SETTINGS (OPTIONAL)
+# ========================================
+
+# Minimum SOL threshold to trigger alerts (default: 5.0)
+# KORA_ALERT_THRESHOLD=5.0
+
+# Grace period in hours before reclaiming (default: 24)
+# KORA_GRACE_PERIOD_HOURS=24
+
+# Scan interval for daemon mode (default: 10s)
+# KORA_SCAN_INTERVAL=10s
+```
+
+#### 3. Alternative: Use Signers Config File
+
+For better security, you can use a `signers.toml` file instead of storing keys in `.env`:
+
+```toml
+# signers.toml
+[[signer]]
+name = "operator"
+keypair_path = "/path/to/your/keypair.json"
+```
+
+#### 4. Secure Your Keys
+
+**Important Security Notes:**
+
+- Never commit `.env` or keypair files to version control
+- Add `.env` and `*.json` to your `.gitignore`
+- Use file permissions to restrict access:
+
+```bash
+chmod 600 .env
+chmod 600 /path/to/your/keypair.json
+```
+
+#### 5. Generate a Keypair (If Needed)
+
+If you need to generate a new Solana keypair:
+
+```bash
+solana-keygen new --outfile ~/kora-operator.json
+```
+
+Or using Kora CLI:
+
+```bash
+kora keygen --output ~/kora-operator.json
+```
+
+---
+
+### Verification
+
+Before running the bot, verify your setup:
+
+```bash
+# Check if all dependencies are installed
+rustc --version
+cargo --version
+make --version
+kora --version
+
+# Test your configuration (dry run)
+cargo run -- --help
 ```
 
 ---
@@ -139,6 +346,12 @@ View the state of your accounts without sending transactions. This populates the
 make scan
 ```
 
+This command is **safe** and does not modify any accounts. Use it to:
+
+- Audit your current rent allocation
+- Identify accounts ready for reclamation
+- Test your configuration before enabling reclamation
+
 ### 2. ⚡ Reclaim (Action)
 
 Execute the cleanup. This will only close accounts that have passed the 24h Grace Period.
@@ -146,6 +359,8 @@ Execute the cleanup. This will only close accounts that have passed the 24h Grac
 ```bash
 make reclaim
 ```
+
+**⚠️ Warning:** This command will send transactions to the Solana network and close accounts. Ensure you've reviewed the scan results first.
 
 ### 3. 🤖 Run Daemon (Background Service)
 
@@ -157,6 +372,29 @@ make run
 
 # Run with custom interval (e.g., 1 hour)
 make run INTERVAL=1h
+
+# Run with 5-minute interval
+make run INTERVAL=5m
+```
+
+**Recommended for Production:**
+
+- Start with a longer interval (e.g., `1h`) for safety
+- Monitor the first few cycles manually
+- Gradually decrease interval as you gain confidence
+
+### 4. 📋 View Logs
+
+Check the audit log for all reclamation activity:
+
+```bash
+cat audit_log.csv
+```
+
+Or use tools like `csvkit` for better formatting:
+
+```bash
+csvlook audit_log.csv
 ```
 
 ---
@@ -182,9 +420,56 @@ When running, the bot displays a rich terminal interface:
 
 Check `audit_log.csv` for a permanent record:
 
-```
+```csv
 timestamp,date_utc,account,mint,action,reason,rent_reclaimed_sol,signature
 1706131200,2024-01-25T00:00:00Z,4xp...JQc,DD6...f62,RECLAIMED,InactiveGracePeriodPassed,0.0020,5Mz...123
+```
+
+### Telegram Notifications
+
+If configured, you'll receive alerts for:
+
+- **High Rent Alert:** When total locked rent exceeds threshold
+- **Reclamation Success:** Summary of each successful cycle
+- **Heartbeat:** Periodic status updates confirming the daemon is alive
+
+---
+
+## 🔧 Advanced Configuration
+
+### Custom RPC Endpoint
+
+For production, use a dedicated RPC provider:
+
+```bash
+export SOLANA_RPC_URL=https://your-rpc-provider.com
+```
+
+Recommended providers:
+
+- [Helius](https://helius.dev/)
+- [QuickNode](https://www.quicknode.com/)
+- [Triton](https://triton.one/)
+
+### Whitelist Accounts
+
+To prevent specific accounts from being closed, add them to `whitelist.json`:
+
+```json
+{
+  "accounts": [
+    "AccountAddress1111111111111111111111111",
+    "AccountAddress2222222222222222222222222"
+  ]
+}
+```
+
+### Adjust Grace Period
+
+Modify the grace period in your `.env`:
+
+```dotenv
+KORA_GRACE_PERIOD_HOURS=48  # Wait 48 hours instead of 24
 ```
 
 ---
@@ -201,13 +486,61 @@ timestamp,date_utc,account,mint,action,reason,rent_reclaimed_sol,signature
 
 ---
 
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**"Command not found: make"**
+
+- Install Make using the instructions in Prerequisites
+
+**"Failed to connect to RPC"**
+
+- Check your `SOLANA_RPC_URL` in `.env`
+- Verify network connectivity
+- Try using a different RPC endpoint
+
+**"Invalid private key"**
+
+- Ensure `KORA_PRIVATE_KEY` is a valid base58-encoded key
+- Or verify your `signers.toml` points to a valid keypair file
+
+**"Permission denied" when reading keypair**
+
+- Set proper file permissions: `chmod 600 /path/to/keypair.json`
+
+---
+
 ## ⚠️ Disclaimer
 
 This tool deals with private keys and account deletion. While a 24-hour safety mechanism is implemented, please run `make scan` first to verify the state of your accounts. Use at your own risk.
 
+**Security Best Practices:**
+
+- Never share your private keys or `.env` file
+- Test on devnet before using on mainnet
+- Start with manual scans before enabling automated reclamation
+- Monitor the first few cycles closely
+
 ---
 
+## 📄 License
+
 Licensed under MIT, following the original License by Kora.
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+---
+
+## 📞 Support
+
+- **Issues:** [GitHub Issues](https://github.com/YOUR_USERNAME/kora-rent-manager/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/YOUR_USERNAME/kora-rent-manager/discussions)
+- **Kora Docs:** [docs.kora.xyz](https://docs.kora.xyz)
 
 ---
 
