@@ -20,19 +20,47 @@ _https://www.loom.com/share/021e74ce74b14293808946eb0a58e326_
 
 Quick visual tour — images are available in the `screenshots/` folder.
 
-- ![TUI Dashboard](screenshots/tui-dashboard.png) — TUI dashboard showing cycle efficiency and live logs.
+<p align="center">
+  <img src="screenshots/tui-dashboard.png" alt="TUI Dashboard" />
+</p>
 
-- ![Scan Results](screenshots/scan.png) — Scan results with `Pending` and `Reclaimable` statuses.
+<p align="center"><em>TUI dashboard showing cycle efficiency and live logs.</em></p>
 
-- ![Stats & Reclaims](screenshots/stats.png) — Cycle stats and reclaimed SOL summary.
+<p align="center">
+  <img src="screenshots/scan.png" alt="Scan Results" />
+</p>
 
-- ![Telegram Alerts](screenshots/telegram-alerts.png) — Heartbeat and notification examples (Telegram).
+<p align="center"><em>Scan results with `Pending` and `Reclaimable` statuses.</em></p>
 
-- ![Demo Setup](screenshots/setup.png) — Test/devnet setup for creating zombie accounts.
+<p align="center">
+  <img src="screenshots/stats.png" alt="Stats & Reclaims" />
+</p>
 
-- ![Daemon Running](screenshots/run.png) — Background daemon running in the terminal.
+<p align="center"><em>Cycle stats and reclaimed SOL summary.</em></p>
 
-- ![Audit Log](screenshots/audit-logs.png) — CSV audit log view.
+<p align="center">
+  <img src="screenshots/telegram-alerts.png" alt="Telegram Alerts" />
+</p>
+
+<p align="center"><em>Heartbeat and notification examples (Telegram).</em></p>
+
+<p align="center">
+  <img src="screenshots/setup.png" alt="Demo Setup" />
+</p>
+
+<p align="center"><em>Test/devnet setup for creating zombie accounts.</em></p>
+
+<p align="center">
+  <img src="screenshots/run.png" alt="Daemon Running" />
+</p>
+
+<p align="center"><em>Background daemon running in the terminal.</em></p>
+
+<p align="center">
+  <img src="screenshots/audit-logs.png" alt="Audit Log" />
+</p>
+
+<p align="center"><em>CSV audit log view.</em></p>
 
 ---
 
