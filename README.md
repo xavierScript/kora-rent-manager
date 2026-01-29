@@ -77,7 +77,6 @@ LICENSE.md
 Makefile
 README.md
 
-audits/
 crates/
   cli/
     Cargo.toml
@@ -88,11 +87,7 @@ crates/
       bin/
   lib/
       ...
-examples/
-makefiles/
-sdks/
 target/
-tests/
 ```
 
 ---
@@ -197,7 +192,6 @@ The bot performs the following cycle:
 #### Optional Dependencies
 
 - **Solana CLI:** Helpful for key generation and testing
-- **Docker:** For containerized deployments
 
 ---
 
@@ -242,8 +236,7 @@ sudo dnf install make
 
 **Windows:**
 
-- Install via [Chocolatey](https://chocolatey.org/): `choco install make`
-- Or use [WSL](https://docs.microsoft.com/en-us/windows/wsl/install) for a Linux environment
+- use [WSL](https://docs.microsoft.com/en-us/windows/wsl/install) for a Linux environment
 
 Verify installation:
 
