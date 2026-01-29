@@ -16,6 +16,53 @@ _https://www.loom.com/share/021e74ce74b14293808946eb0a58e326_
 
 ---
 
+## 🖼️ Screenshots
+
+Quick visual tour — images are available in the `screenshots/` folder.
+
+- ![TUI Dashboard](screenshots/tui-dashboard.png) — TUI dashboard showing cycle efficiency and live logs.
+- ![Scan Results](screenshots/scan.png) — Scan results with `Pending` and `Reclaimable` statuses.
+- ![Stats & Reclaims](screenshots/stats.png) — Cycle stats and reclaimed SOL summary.
+- ![Telegram Alerts](screenshots/telegram-alerts.png) — Heartbeat and notification examples (Telegram).
+- ![Demo Setup](screenshots/setup.png) — Test/devnet setup for creating zombie accounts.
+- ![Daemon Running](screenshots/run.png) — Background daemon running in the terminal.
+- ![Audit Log](screenshots/audit-logs.png) — CSV audit log view in terminal.
+
+---
+
+---
+
+## 🗂️ Project File Structure
+
+Below is a high-level overview of the main file and directory structure for this repository:
+
+```
+audit_log.csv
+grace_period.json
+LICENSE.md
+Makefile
+README.md
+
+audits/
+crates/
+  cli/
+    Cargo.toml
+    src/
+      args.rs
+      main.rs
+      rent_manager.rs
+      bin/
+  lib/
+      ...
+examples/
+makefiles/
+sdks/
+target/
+tests/
+```
+
+---
+
 ## 🚨 The Problem: Silent Capital Loss
 
 Kora makes onboarding users to Solana seamless by sponsoring account creation fees. However, this convenience creates an operational gap: **Rent-Locked SOL**.
@@ -56,7 +103,7 @@ In high-throughput Kora deployments—especially those involving custodial walle
 1. **Creation:** Kora creates a Token Account to receive or buffer user funds. The Operator pays the `~0.002 SOL` rent deposit.
 2. **Usage:** The user interacts with the app, eventually withdrawing or spending their tokens.
 3. **Abandonment:** The Token Account balance hits `0`. However, the account remains open on-chain.
-4. **The Trap:** The `0.002 SOL` rent deposit remains locked in this empty "Zombie Account."
+4. **The Lock:** The `0.002 SOL` rent deposit remains locked in this empty "Zombie Account."
 
 While 0.002 SOL seems trivial, a Kora node servicing 100,000 operations can easily end up with 200+ SOL ($30,000+) locked in inactive accounts. **Kora Rent Manager** automates the recovery of this dormant capital.
 
@@ -206,22 +253,36 @@ solana --version
 
 ---
 
-### Installation
+### Installation and Setup
 
 #### Clone the Repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/kora-rent-manager.git
+git clone https://github.com/xavierScript/kora-rent-manager.git
 cd kora-rent-manager
 ```
 
 #### Build the Project
 
 ```bash
-cargo build --release
+make install
 ```
 
 The compiled binary will be available at `./target/release/kora-rent-manager`.
+
+#### 🧟‍♂️ Set Up Zombie Accounts (Devnet Testing)
+
+```bash
+make setup
+```
+
+This command creates a **test (zombie) account on Solana devnet** whose rent is funded by your wallet.  
+It is intended strictly for development and testing purposes.
+
+##### Requirements
+
+- Your wallet must have sufficient **devnet SOL**
+- Obtain devnet SOL from the Solana faucet before running the command
 
 ---
 
@@ -245,9 +306,6 @@ Add the following to your `.env` file:
 # ========================================
 
 # Private Key Signer (Your Kora Operator Keypair)
-# This can be either:
-# - A base58-encoded private key string
-# - Or use the signers.toml file (recommended for security)
 KORA_PRIVATE_KEY=your_base58_private_key_here
 
 # RPC Endpoint (Optional - defaults to devnet)
@@ -262,58 +320,14 @@ KORA_TG_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
 
 # Your Telegram Chat ID (get from @userinfobot)
 KORA_TG_CHAT_ID=987654321
-
-# ========================================
-# OPERATIONAL SETTINGS (OPTIONAL)
-# ========================================
-
-# Minimum SOL threshold to trigger alerts (default: 5.0)
-# KORA_ALERT_THRESHOLD=5.0
-
-# Grace period in hours before reclaiming (default: 24)
-# KORA_GRACE_PERIOD_HOURS=24
-
-# Scan interval for daemon mode (default: 10s)
-# KORA_SCAN_INTERVAL=10s
 ```
 
-#### 3. Alternative: Use Signers Config File
-
-For better security, you can use a `signers.toml` file instead of storing keys in `.env`:
-
-```toml
-# signers.toml
-[[signer]]
-name = "operator"
-keypair_path = "/path/to/your/keypair.json"
-```
-
-#### 4. Secure Your Keys
+#### 3. Secure Your Keys
 
 **Important Security Notes:**
 
 - Never commit `.env` or keypair files to version control
 - Add `.env` and `*.json` to your `.gitignore`
-- Use file permissions to restrict access:
-
-```bash
-chmod 600 .env
-chmod 600 /path/to/your/keypair.json
-```
-
-#### 5. Generate a Keypair (If Needed)
-
-If you need to generate a new Solana keypair:
-
-```bash
-solana-keygen new --outfile ~/kora-operator.json
-```
-
-Or using Kora CLI:
-
-```bash
-kora keygen --output ~/kora-operator.json
-```
 
 ---
 
@@ -327,9 +341,6 @@ rustc --version
 cargo --version
 make --version
 kora --version
-
-# Test your configuration (dry run)
-cargo run -- --help
 ```
 
 ---
@@ -340,7 +351,7 @@ We provide a Makefile for easy operation.
 
 ### 1. 🔍 Scan (Read-Only)
 
-View the state of your accounts without sending transactions. This populates the Dashboard with "Pending" or "Funded" statuses.
+View the state of your accounts without sending transactions. This populates the Dashboard with "Pending", "Reclaimable" or "Funded" statuses.
 
 ```bash
 make scan
@@ -375,6 +386,14 @@ make run INTERVAL=1h
 
 # Run with 5-minute interval
 make run INTERVAL=5m
+```
+
+### 4. 📜 Stats (Action)
+
+Check for Stats relating to the Node Operator (Your wallet address, in this case)
+
+```bash
+make stats
 ```
 
 **Recommended for Production:**
@@ -505,10 +524,6 @@ KORA_GRACE_PERIOD_HOURS=48  # Wait 48 hours instead of 24
 - Ensure `KORA_PRIVATE_KEY` is a valid base58-encoded key
 - Or verify your `signers.toml` points to a valid keypair file
 
-**"Permission denied" when reading keypair**
-
-- Set proper file permissions: `chmod 600 /path/to/keypair.json`
-
 ---
 
 ## ⚠️ Disclaimer
@@ -533,14 +548,6 @@ Licensed under MIT, following the original License by Kora.
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-
----
-
-## 📞 Support
-
-- **Issues:** [GitHub Issues](https://github.com/YOUR_USERNAME/kora-rent-manager/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/YOUR_USERNAME/kora-rent-manager/discussions)
-- **Kora Docs:** [docs.kora.xyz](https://docs.kora.xyz)
 
 ---
 
