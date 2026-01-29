@@ -11,8 +11,8 @@
 
 ## 📺 Demo & Deep Dive
 
-**[▶️ WATCH THE LIVE WALKTHROUGH VIDEO HERE]**
-_(Replace this line with your YouTube/Loom link.)_
+**▶️ WATCH THE LIVE WALKTHROUGH VIDEO HERE**
+_https://www.loom.com/share/021e74ce74b14293808946eb0a58e326_
 
 ---
 
