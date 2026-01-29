@@ -60,7 +60,7 @@ Quick visual tour — images are available in the `screenshots/` folder.
   <img src="screenshots/audit-logs.png" alt="Audit Log" />
 </p>
 
-<p align="center"><em>CSV audit log view.</em></p>
+<p align="center"><em>CSV audit log view of reclaimed accounts.</em></p>
 
 ---
 
