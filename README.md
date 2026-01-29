@@ -21,12 +21,18 @@ _https://www.loom.com/share/021e74ce74b14293808946eb0a58e326_
 Quick visual tour — images are available in the `screenshots/` folder.
 
 - ![TUI Dashboard](screenshots/tui-dashboard.png) — TUI dashboard showing cycle efficiency and live logs.
+
 - ![Scan Results](screenshots/scan.png) — Scan results with `Pending` and `Reclaimable` statuses.
+
 - ![Stats & Reclaims](screenshots/stats.png) — Cycle stats and reclaimed SOL summary.
+
 - ![Telegram Alerts](screenshots/telegram-alerts.png) — Heartbeat and notification examples (Telegram).
+
 - ![Demo Setup](screenshots/setup.png) — Test/devnet setup for creating zombie accounts.
+
 - ![Daemon Running](screenshots/run.png) — Background daemon running in the terminal.
-- ![Audit Log](screenshots/audit-logs.png) — CSV audit log view in terminal.
+
+- ![Audit Log](screenshots/audit-logs.png) — CSV audit log view.
 
 ---
 
