@@ -1,5 +1,5 @@
 // Safety Mechanism: Accounts must be empty for 24 hours before we reclaim them.
-pub const GRACE_PERIOD_SECONDS: u64 = 60; // Set to 60s for demo, usually 24*60*60
+pub const GRACE_PERIOD_SECONDS: u64 = 24 * 60 * 60; // 24 hours
 
 // File paths
 pub const TRACKER_FILE: &str = "grace_period.json";
