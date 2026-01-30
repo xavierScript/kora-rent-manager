@@ -9,6 +9,44 @@
 
 ---
 
+## 📚 Table of Contents
+
+- [Demo & Deep Dive](#📺-demo--deep-dive)
+- [Screenshots](#🖼️-screenshots)
+- [Project File Structure](#🗂️-project-file-structure)
+- [The Problem: Silent Capital Loss](#🚨-the-problem-silent-capital-loss)
+- [How Kora Works & The "Rent Trap"](#⚙️-how-kora-works--the-rent-trap)
+  - [Kora: The Fee Abstraction Layer](#1-kora-the-fee-abstraction-layer)
+  - [The Solana Rent Model](#2-the-solana-rent-model)
+  - [Where the Lock Happens (The Leak)](#3-where-the-lock-happens-the-leak)
+- [The Solution: Kora Rent Manager](#🛠️-the-solution-kora-rent-manager)
+  - [Key Features](#key-features)
+- [Technical Context: How It Works](#🧠-technical-context-how-it-works)
+  - [Solana Rent Mechanics](#solana-rent-mechanics)
+  - [The Reclaim Logic](#the-reclaim-logic)
+- [Getting Started](#🚀-getting-started)
+  - [System Requirements](#system-requirements)
+  - [Prerequisites Installation](#prerequisites-installation)
+  - [Installation and Setup](#installation-and-setup)
+  - [Configuration](#configuration)
+  - [Verification](#verification)
+- [Usage Guide](#🎮-usage-guide)
+  - [Scan (Read-Only)](#1-🔍-scan-read-only)
+  - [Reclaim (Action)](#2-⚡-reclaim-action)
+  - [Run Daemon (Background Service)](#3-🤖-run-daemon-background-service)
+  - [Stats (Action)](#4-📜-stats-action)
+  - [View Logs](#4-📋-view-logs)
+- [Dashboard & Monitoring](#📊-dashboard--monitoring)
+  - [The TUI (Terminal User Interface)](#the-tui-terminal-user-interface)
+  - [The Audit Log](#the-audit-log)
+  - [Telegram Notifications](#telegram-notifications)
+- [Advanced Configuration](#🔧-advanced-configuration)
+- [Submission Checklist](#🏆-submission-checklist)
+- [Troubleshooting](#🐛-troubleshooting)
+- [Disclaimer](#⚠️-disclaimer)
+- [License](#📄-license)
+- [Contributing](#🤝-contributing)
+
 ## 📺 Demo & Deep Dive
 
 **▶️ WATCH THE WALKTHROUGH VIDEO HERE**
@@ -71,23 +109,38 @@ Quick visual tour — images are available in the `screenshots/` folder.
 Below is a high-level overview of the main file and directory structure for this repository:
 
 ```
-audit_log.csv
-grace_period.json
-LICENSE.md
-Makefile
-README.md
-
-crates/
-  cli/
-    Cargo.toml
-    src/
-      args.rs
-      main.rs
-      rent_manager.rs
-      bin/
-  lib/
-      ...
-target/
+.
+├── .env.example
+├── Cargo.toml
+├── Cargo.lock
+├── Makefile
+├── README.md
+├── LICENSE.md
+├── audit_log.csv
+├── grace_period.json
+├── kora.toml
+├── signers.toml
+├── rust-toolchain.toml
+├── rustfmt.toml
+├── screenshots/
+├── target/
+└── crates/
+    ├── cli/
+    │   ├── Cargo.toml
+    │   └── src/
+    │       ├── args.rs
+    │       ├── main.rs
+    │       ├── rent_manager/
+    │       │   ├── mod.rs
+    │       │   ├── config.rs
+    │       │   ├── logic.rs
+    │       │   ├── state.rs
+    │       │   ├── tui.rs
+    │       │   ├── types.rs
+    │       │   └── utils.rs
+    │       └── setup/
+    └── lib/
+        └── src/ ...
 ```
 
 ---
