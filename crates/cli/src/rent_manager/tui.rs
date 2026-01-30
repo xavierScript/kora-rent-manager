@@ -18,7 +18,7 @@ pub fn ui(f: &mut Frame, app: &AppState) {
         .split(f.area());
 
     let spinner = if app.is_working { ["|", "/", "-", "\\"][app.spinner_idx] } else { "✓" };
-    let header_text = format!(" KORA RENT MANAGER v2.0 | {} ", spinner);
+    let header_text = format!(" KORA RENT MANAGER v1.0 | {} ", spinner);
     let header = Paragraph::new(header_text)
         .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
         .alignment(Alignment::Center)
