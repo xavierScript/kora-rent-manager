@@ -26,7 +26,7 @@ install:
 
 # Setup: Create a "Zombie" (empty) account to test the bot logic
 setup:
-	RPC_URL=$(RPC) cargo run --bin setup_reclaim
+	RPC_URL=$(RPC) cargo run --bin zombie_account_setup
 
 # Scan: View accounts without taking action (Read-Only)
 # Displays pending/funded accounts in TUI

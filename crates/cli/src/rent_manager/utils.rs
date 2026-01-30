@@ -42,6 +42,7 @@ macro_rules! log_output {
 
 // --- Functions ---
 
+// Send Telegram Alert
 pub async fn send_telegram_alert(message: &str) {
     let token = match env::var("KORA_TG_TOKEN") {
         Ok(t) => t,
@@ -61,6 +62,7 @@ pub async fn send_telegram_alert(message: &str) {
     }
 }
 
+// Log to Audit Trail CSV
 pub fn log_to_audit_trail(record: &AuditRecord) {
     let file_exists = Path::new(AUDIT_FILE).exists();
     let file = OpenOptions::new()
@@ -79,6 +81,7 @@ pub fn log_to_audit_trail(record: &AuditRecord) {
     wtr.flush().unwrap();
 }
 
+// Fetch all token accounts for a given owner
 pub async fn fetch_all_token_accounts(
     rpc_client: &RpcClient,
     owner: &Pubkey,
@@ -105,6 +108,7 @@ pub async fn fetch_all_token_accounts(
     Ok(all_accounts)
 }
 
+// Parse token account data from UiAccountData
 fn parse_token_account_data(data: &UiAccountData) -> Option<(u64, Pubkey)> {
     match data {
         UiAccountData::Json(parsed) => {
@@ -127,6 +131,7 @@ fn parse_token_account_data(data: &UiAccountData) -> Option<(u64, Pubkey)> {
     }
 }
 
+// Close a token account
 pub async fn close_account(
     rpc_client: &RpcClient,
     signer: &Arc<impl SolanaSigner>, 
@@ -159,6 +164,7 @@ pub async fn close_account(
         .map_err(|e| KoraError::InternalServerError(e.to_string()))
 }
 
+// Get allowed SPL tokens from config
 pub fn get_allowed_tokens() -> Result<(Vec<Pubkey>, bool), KoraError> {
     let config = get_config()?;
     let is_all = matches!(config.validation.allowed_spl_paid_tokens, SplTokenConfig::All);
@@ -168,6 +174,7 @@ pub fn get_allowed_tokens() -> Result<(Vec<Pubkey>, bool), KoraError> {
     Ok((tokens, is_all))
 }
 
+// Convert lamports to SOL
 pub fn lamports_to_sol(lamports: u64) -> f64 {
     lamports as f64 / 1_000_000_000.0
 }

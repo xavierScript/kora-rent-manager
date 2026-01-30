@@ -11,8 +11,8 @@ name = "kora"
 path = "src/main.rs"
 
 [[bin]]
-name = "setup_reclaim"
-path = "src/bin/setup_reclaim.rs"
+name = "zombie_account_setup"
+path = "src/setup/zombie_account_setup.rs"
 
 [features]
 docs = ["kora-lib/docs", "dep:utoipa"]

@@ -4,6 +4,8 @@ use ratatui::{
 };
 use super::state::AppState;
 
+
+// --- UI Rendering Function ---
 pub fn ui(f: &mut Frame, app: &AppState) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)

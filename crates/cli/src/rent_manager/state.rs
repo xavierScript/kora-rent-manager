@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 use ratatui::style::Color;
 use super::config::TRACKER_FILE;
 
+
+// --- Grace Period Tracker ---
 #[derive(Serialize, Deserialize, Default)]
 pub struct GracePeriodTracker {
     pub pending_closures: HashMap<String, u64>,
@@ -26,6 +28,7 @@ impl GracePeriodTracker {
     }
 }
 
+// --- Application State for TUI ---
 pub struct AppState {
     pub logs: Vec<(String, String, Color)>, 
     pub total_reclaimed_sol: f64,

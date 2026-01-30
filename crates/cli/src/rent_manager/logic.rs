@@ -22,6 +22,8 @@ use super::utils::{
 };
 use crate::log_output; // Import the macro
 
+// --- Main TUI Task ---
+// Runs the TUI and spawns background worker tasks
 pub async fn run_tui_task(
     rpc_client: Arc<RpcClient>,
     signer_pool: Arc<SignerPool>, 
@@ -158,6 +160,9 @@ pub async fn run_tui_task(
     Ok(())
 }
 
+// --- Core Logic Functions ---
+
+// Scan accounts and report reclaimable ones
 async fn scan_accounts(
     rpc_client: Arc<RpcClient>,
     signer_pool: &SignerPool,
@@ -237,6 +242,7 @@ async fn scan_accounts(
     Ok(())
 }
 
+// Reclaim rent from eligible accounts
 async fn reclaim_rent(
     rpc_client: Arc<RpcClient>,
     signer_pool: &SignerPool,
