@@ -11,41 +11,43 @@
 
 ## 📚 Table of Contents
 
-- [Demo & Deep Dive](#📺-demo--deep-dive)
-- [Screenshots](#🖼️-screenshots)
-- [Project File Structure](#🗂️-project-file-structure)
-- [The Problem: Silent Capital Loss](#🚨-the-problem-silent-capital-loss)
-- [How Kora Works & The "Rent Trap"](#⚙️-how-kora-works--the-rent-trap)
-  - [Kora: The Fee Abstraction Layer](#1-kora-the-fee-abstraction-layer)
-  - [The Solana Rent Model](#2-the-solana-rent-model)
-  - [Where the Lock Happens (The Leak)](#3-where-the-lock-happens-the-leak)
-- [The Solution: Kora Rent Manager](#🛠️-the-solution-kora-rent-manager)
+- [Demo & Deep Dive](#demo-deep-dive)
+- [Screenshots](#screenshots)
+- [Project File Structure](#project-file-structure)
+- [The Problem: Silent Capital Loss](#problem-silent-capital-loss)
+- [How Kora Works & The "Rent Trap"](#how-kora-works)
+  - [Kora: The Fee Abstraction Layer](#kora-fee-abstraction-layer)
+  - [The Solana Rent Model](#solana-rent-model)
+  - [Where the Lock Happens (The Leak)](#where-lock-happens)
+- [The Solution: Kora Rent Manager](#the-solution)
   - [Key Features](#key-features)
-- [Technical Context: How It Works](#🧠-technical-context-how-it-works)
+- [Technical Context: How It Works](#technical-context)
   - [Solana Rent Mechanics](#solana-rent-mechanics)
   - [The Reclaim Logic](#the-reclaim-logic)
-- [Getting Started](#🚀-getting-started)
+- [Getting Started](#getting-started)
   - [System Requirements](#system-requirements)
   - [Prerequisites Installation](#prerequisites-installation)
   - [Installation and Setup](#installation-and-setup)
   - [Configuration](#configuration)
   - [Verification](#verification)
-- [Usage Guide](#🎮-usage-guide)
-  - [Scan (Read-Only)](#1-🔍-scan-read-only)
-  - [Reclaim (Action)](#2-⚡-reclaim-action)
-  - [Run Daemon (Background Service)](#3-🤖-run-daemon-background-service)
-  - [Stats (Action)](#4-📜-stats-action)
-  - [View Logs](#4-📋-view-logs)
-- [Dashboard & Monitoring](#📊-dashboard--monitoring)
-  - [The TUI (Terminal User Interface)](#the-tui-terminal-user-interface)
+- [Usage Guide](#usage-guide)
+  - [Scan (Read-Only)](#scan-read-only)
+  - [Reclaim (Action)](#reclaim-action)
+  - [Run Daemon (Background Service)](#run-daemon)
+  - [Stats (Action)](#stats-action)
+  - [View Logs](#view-logs)
+- [Dashboard & Monitoring](#dashboard-monitoring)
+  - [The TUI (Terminal User Interface)](#tui-terminal-user-interface)
   - [The Audit Log](#the-audit-log)
   - [Telegram Notifications](#telegram-notifications)
-- [Advanced Configuration](#🔧-advanced-configuration)
-- [Submission Checklist](#🏆-submission-checklist)
-- [Troubleshooting](#🐛-troubleshooting)
-- [Disclaimer](#⚠️-disclaimer)
-- [License](#📄-license)
-- [Contributing](#🤝-contributing)
+- [Advanced Configuration](#advanced-configuration)
+- [Submission Checklist](#submission-checklist)
+- [Troubleshooting](#troubleshooting)
+- [Disclaimer](#disclaimer)
+- [License](#license)
+- [Contributing](#contributing)
+
+<a id="demo-deep-dive"></a>
 
 ## 📺 Demo & Deep Dive
 
@@ -53,6 +55,8 @@
 _https://www.loom.com/share/021e74ce74b14293808946eb0a58e326_
 
 ---
+
+<a id="screenshots"></a>
 
 ## 🖼️ Screenshots
 
@@ -104,6 +108,8 @@ Quick visual tour — images are available in the `screenshots/` folder.
 
 ---
 
+<a id="project-file-structure"></a>
+
 ## 🗂️ Project File Structure
 
 Below is a high-level overview of the main file and directory structure for this repository:
@@ -145,6 +151,8 @@ Below is a high-level overview of the main file and directory structure for this
 
 ---
 
+<a id="problem-silent-capital-loss"></a>
+
 ## 🚨 The Problem: Silent Capital Loss
 
 Kora makes onboarding users to Solana seamless by sponsoring account creation fees. However, this convenience creates an operational gap: **Rent-Locked SOL**.
@@ -158,9 +166,13 @@ Operators rarely have the time to manually audit thousands of accounts, check ba
 
 ---
 
+<a id="how-kora-works"></a>
+
 ## ⚙️ How Kora Works & The "Rent Trap"
 
 To understand why this tool is necessary, it helps to understand the architecture of Kora and the Solana Storage Model.
+
+<a id="kora-fee-abstraction-layer"></a>
 
 ### 1. Kora: The Fee Abstraction Layer
 
@@ -170,6 +182,8 @@ Kora acts as a Paymaster and Relayer. It sits between your application and the S
 - The Kora Node validates the transaction and acts as the Fee Payer, covering the SOL network costs.
 - The Result: Users interact with Solana without ever holding SOL.
 
+<a id="solana-rent-model"></a>
+
 ### 2. The Solana Rent Model
 
 On Solana, everything is an account, and every account takes up space on the validator's disk. To prevent spam, Solana charges Rent (approx. `0.002039 SOL` per Token Account).
@@ -177,6 +191,8 @@ On Solana, everything is an account, and every account takes up space on the val
 - This SOL is deposited when an account is created.
 - It is locked inside the account as long as the account exists.
 - It is fully refundable if the account is closed.
+
+<a id="where-lock-happens"></a>
 
 ### 3. Where the Lock Happens (The Leak)
 
@@ -191,9 +207,13 @@ While 0.002 SOL seems trivial, a Kora node servicing 100,000 operations can easi
 
 ---
 
+<a id="the-solution"></a>
+
 ## 🛠️ The Solution: Kora Rent Manager
 
 This tool is a **set-and-forget** CLI utility and background service designed to close this operational gap. It provides a visual dashboard to monitor rent status and an automated daemon to reclaim funds safely.
+
+<a id="key-features"></a>
 
 ### Key Features
 
@@ -206,11 +226,17 @@ This tool is a **set-and-forget** CLI utility and background service designed to
 
 ---
 
+<a id="technical-context"></a>
+
 ## 🧠 Technical Context: How It Works
+
+<a id="solana-rent-mechanics"></a>
 
 ### Solana Rent Mechanics
 
 On Solana, every account must hold a minimum amount of SOL (approx. 0.002039 SOL) to remain "rent-exempt." If an account has 0 tokens but still holds this SOL, it is essentially wasting space and money.
+
+<a id="the-reclaim-logic"></a>
 
 ### The Reclaim Logic
 
@@ -227,7 +253,11 @@ The bot performs the following cycle:
 
 ---
 
+<a id="getting-started"></a>
+
 ## 🚀 Getting Started
+
+<a id="system-requirements"></a>
 
 ### System Requirements
 
@@ -425,6 +455,8 @@ kora --version
 
 ---
 
+<a id="usage-guide"></a>
+
 ## 🎮 Usage Guide
 
 We provide a Makefile for easy operation.
@@ -498,7 +530,11 @@ csvlook audit_log.csv
 
 ---
 
+<a id="dashboard-monitoring"></a>
+
 ## 📊 Dashboard & Monitoring
+
+<a id="tui-terminal-user-interface"></a>
 
 ### The TUI (Terminal User Interface)
 
@@ -515,6 +551,8 @@ When running, the bot displays a rich terminal interface:
 - **GREY:** Account is funded (Skipped).
 - **RED:** High Rent Alert or Error.
 
+<a id="the-audit-log"></a>
+
 ### The Audit Log
 
 Check `audit_log.csv` for a permanent record:
@@ -523,6 +561,8 @@ Check `audit_log.csv` for a permanent record:
 timestamp,date_utc,account,mint,action,reason,rent_reclaimed_sol,signature
 1706131200,2024-01-25T00:00:00Z,4xp...JQc,DD6...f62,RECLAIMED,InactiveGracePeriodPassed,0.0020,5Mz...123
 ```
+
+<a id="telegram-notifications"></a>
 
 ### Telegram Notifications
 
@@ -533,6 +573,8 @@ If configured, you'll receive alerts for:
 - **Heartbeat:** Periodic status updates confirming the daemon is alive
 
 ---
+
+<a id="advanced-configuration"></a>
 
 ## 🔧 Advanced Configuration
 
@@ -573,6 +615,8 @@ KORA_GRACE_PERIOD_HOURS=48  # Wait 48 hours instead of 24
 
 ---
 
+<a id="submission-checklist"></a>
+
 ## 🏆 Submission Checklist
 
 - [x] Monitors Accounts: Scans all token accounts for specific signers.
@@ -584,6 +628,8 @@ KORA_GRACE_PERIOD_HOURS=48  # Wait 48 hours instead of 24
 - [x] Alerts: Visual Dashboard Alerts + Telegram Push Notifications + Heartbeat Reports.
 
 ---
+
+<a id="troubleshooting"></a>
 
 ## 🐛 Troubleshooting
 
@@ -606,6 +652,8 @@ KORA_GRACE_PERIOD_HOURS=48  # Wait 48 hours instead of 24
 
 ---
 
+<a id="disclaimer"></a>
+
 ## ⚠️ Disclaimer
 
 This tool deals with private keys and account deletion. While a 24-hour safety mechanism is implemented, please run `make scan` first to verify the state of your accounts. Use at your own risk.
@@ -619,11 +667,15 @@ This tool deals with private keys and account deletion. While a 24-hour safety m
 
 ---
 
+<a id="license"></a>
+
 ## 📄 License
 
 Licensed under MIT, following the original License by Kora.
 
 ---
+
+<a id="contributing"></a>
 
 ## 🤝 Contributing
 
