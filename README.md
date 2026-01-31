@@ -268,7 +268,8 @@ The bot performs the following cycle:
 
 ## 🐳 Quick Start with Docker (Recommended)
 
-Skip the manual installation. Run Kora instantly in a secure, isolated container using Docker Compose.
+Skip the manual installation. Run Kora Rent Manager instantly in a secure, isolated container using Docker Compose.
+Clone the repo and then follow the steps below:
 
 ### 1. Configuration
 
@@ -301,7 +302,7 @@ docker compose run --rm help
 
 <a id="getting-started"></a>
 
-## 🚀 Getting Started (Manually)
+## 🚀 Getting Started (If you do not want Docker)
 
 <a id="system-requirements"></a>
 
@@ -403,7 +404,7 @@ solana --version
 
 ---
 
-### Installation and Setup (Manually)
+### Manual Setup
 
 #### Clone the Repository
 
@@ -591,7 +592,7 @@ KORA_GRACE_PERIOD_HOURS=48  # Wait 48 hours instead of 24
 
 | Issue                      | Likely Cause                                     | Fix                                                                                          |
 | -------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------- |
-| `Command not found: make`  | `make` not installed                             | Install `make` (see Prerequisites table) or use WSL on Windows.                              |
+| `Command not found: make`  | `make` not installed                             | Install `make` (see Prerequisites table)                                                     |
 | `Failed to connect to RPC` | `SOLANA_RPC_URL` misconfigured or network issues | Verify `SOLANA_RPC_URL` in `.env`, check network, or try a different RPC provider.           |
 | `Invalid private key`      | Bad format or wrong environment variable         | Ensure `KORA_PRIVATE_KEY` is valid base58 or `signers.toml` references a valid keypair file. |
 
