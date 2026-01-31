@@ -35,6 +35,7 @@
   - [Reclaim (Action)](#reclaim-action)
   - [Run Daemon (Background Service)](#run-daemon)
   - [Stats (Action)](#stats-action)
+  - [Help](#help)
   - [View Logs](#view-logs)
 - [Dashboard & Monitoring](#dashboard-monitoring)
   - [The TUI (Terminal User Interface)](#tui-terminal-user-interface)
