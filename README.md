@@ -307,183 +307,56 @@ docker compose run --rm help
 
 ### System Requirements
 
-#### For Kora Rent Manager (Server)
-
-- **Rust:** Version 1.86 or higher
-- **Make:** Command-line build utility
-- **Kora CLI:** For operating a Kora node
-
-#### For TypeScript SDK (Client Applications)
-
-- **Node.js:** Version LTS or higher
-- **TypeScript:** Latest version
-
-#### Optional Dependencies
-
-- **Solana CLI:** Helpful for key generation and testing
+| Component             | Minimum / Recommended    | Notes                                                                    |
+| --------------------- | ------------------------ | ------------------------------------------------------------------------ |
+| Rust                  | 1.86+                    | Required to build the project and run the CLI.                           |
+| Make                  | Package manager provided | Used by the `Makefile` targets (build, run, setup).                      |
+| Kora CLI              | Latest                   | Optional but useful for managing a Kora node (`cargo install kora-cli`). |
+| Node.js               | LTS                      | Required for TypeScript SDK / client tooling.                            |
+| TypeScript            | Latest                   | For client-side development.                                             |
+| Solana CLI (optional) | Latest                   | Helpful for key management and local devnet testing.                     |
 
 ---
 
 ### Prerequisites Installation
 
-#### 1. Install Rust
-
-If you don't have Rust installed, install it using `rustup`:
-
-```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source $HOME/.cargo/env
-```
-
-Verify installation:
-
-```bash
-rustc --version  # Should show 1.86 or higher
-cargo --version
-```
-
-#### 2. Install Make
-
-**macOS:**
-
-```bash
-xcode-select --install
-```
-
-**Linux (Ubuntu/Debian):**
-
-```bash
-sudo apt-get update
-sudo apt-get install build-essential
-```
-
-**Linux (Fedora/RHEL):**
-
-```bash
-sudo dnf install make
-```
-
-**Windows:**
-
-- use [WSL](https://docs.microsoft.com/en-us/windows/wsl/install) for a Linux environment
-
-Verify installation:
-
-```bash
-make --version
-```
-
-#### 3. Install Kora CLI
-
-The Kora CLI is required for operating a Kora node. Install directly from crates.io:
-
-```bash
-cargo install kora-cli
-```
-
-Verify installation:
-
-```bash
-kora --version
-```
-
-#### 4. Install Solana CLI (Optional but Recommended)
-
-The Solana CLI is useful for key generation and testing:
-
-```bash
-sh -c "$(curl -sSfL https://release.solana.com/stable/install)"
-```
-
-Add Solana to your PATH (add to `~/.bashrc` or `~/.zshrc`):
-
-```bash
-export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
-```
-
-Verify installation:
-
-```bash
-solana --version
-```
+| Component             | Install Command                                                   | Notes                                                                              |
+| --------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------ |
+| Rust                  | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs        | sh`<br>`source $HOME/.cargo/env`                                                   | Installs `rustc` and `cargo` via `rustup`. |
+| Make (macOS)          | `xcode-select --install`                                          | Installs developer tools including `make`.                                         |
+| Make (Ubuntu/Debian)  | `sudo apt-get update && sudo apt-get install build-essential`     | Installs `make` and common build tools.                                            |
+| Make (Fedora/RHEL)    | `sudo dnf install make`                                           |                                                                                    |
+| Make (Windows)        | Use WSL: https://docs.microsoft.com/en-us/windows/wsl/install     | Recommend running in WSL for full compatibility.                                   |
+| Kora CLI              | `cargo install kora-cli`                                          | Optional helper CLI for managing Kora nodes.                                       |
+| Solana CLI (optional) | `sh -c "$(curl -sSfL https://release.solana.com/stable/install)"` | Useful for devnet testing and key management; add the install path to your `PATH`. |
 
 ---
 
 ### Installation and Setup (Manually)
 
-#### Clone the Repository
-
-```bash
-git clone https://github.com/xavierScript/kora-rent-manager.git
-cd kora-rent-manager
-```
-
-#### Build the Project
-
-```bash
-make install
-```
-
-The compiled binary will be available at `./target/release/kora-rent-manager`.
-
-#### 🧟‍♂️ Set Up Zombie Accounts (Devnet Testing)
-
-```bash
-make setup
-```
-
-This command creates a **test (zombie) account on Solana devnet** whose rent is funded by your wallet.  
-It is intended strictly for development and testing purposes.
-
-##### Requirements
-
-- Your wallet must have sufficient **devnet SOL**
-- Obtain devnet SOL from the Solana faucet before running the command
+| Step                | Command                                                                                   | Purpose                                                                      |
+| ------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Clone repository    | `git clone https://github.com/xavierScript/kora-rent-manager.git && cd kora-rent-manager` | Get source code and enter project folder.                                    |
+| Build               | `make install`                                                                            | Compile project; binary at `./target/release/kora-rent-manager`.             |
+| Setup devnet zombie | `make setup`                                                                              | Create a test zombie account on devnet (requires devnet SOL in your wallet). |
 
 ---
 
 ### Configuration
 
-#### 1. Create Environment File
+#### Create `.env` and recommended variables
 
-Create a `.env` file in the project root:
+| Env Var                 | Example                         | Description                                                 |
+| ----------------------- | ------------------------------- | ----------------------------------------------------------- |
+| KORA_PRIVATE_KEY        | `your_base58_private_key_here`  | Operator private key (base58). Keep secret — do not commit. |
+| SOLANA_RPC_URL          | `https://api.devnet.solana.com` | Optional custom RPC endpoint. Defaults to devnet if unset.  |
+| KORA_TG_TOKEN           | `123456:ABC-DEF...`             | Telegram bot token for alerts (optional).                   |
+| KORA_TG_CHAT_ID         | `987654321`                     | Telegram chat ID to receive alerts (optional).              |
+| KORA_GRACE_PERIOD_HOURS | `24`                            | Override default grace period (hours).                      |
 
-```bash
-touch .env
-```
+Create a `.env` file in the project root and add the needed variables.
 
-#### 2. Set Environment Variables
-
-Add the following to your `.env` file:
-
-```dotenv
-# ========================================
-# KORA NODE OPERATOR CONFIGURATION
-# ========================================
-
-# Private Key Signer (Your Kora Operator Keypair)
-KORA_PRIVATE_KEY=your_base58_private_key_here
-
-# RPC Endpoint (Optional - defaults to devnet)
-# SOLANA_RPC_URL=https://api.devnet.solana.com
-
-# ========================================
-# TELEGRAM ALERTS (OPTIONAL)
-# ========================================
-
-# Get your bot token from @BotFather on Telegram
-KORA_TG_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
-
-# Your Telegram Chat ID (get from @userinfobot)
-KORA_TG_CHAT_ID=987654321
-```
-
-#### 3. Secure Your Keys
-
-**Important Security Notes:**
-
-- Never commit `.env` or keypair files to version control
-- Add `.env` and `*.json` to your `.gitignore`
+**Security:** Never commit `.env` or keypair files. Add them to `.gitignore`.
 
 ---
 
@@ -568,17 +441,17 @@ If configured, you'll receive alerts for:
 
 ### Custom RPC Endpoint
 
-For production, use a dedicated RPC provider:
+For production, use a dedicated RPC provider. Example:
 
 ```bash
 export SOLANA_RPC_URL=https://your-rpc-provider.com
 ```
 
-Recommended providers:
-
-- [Helius](https://helius.dev/)
-- [QuickNode](https://www.quicknode.com/)
-- [Triton](https://triton.one/)
+| Provider  | Example / Notes                | Remarks                                                   |
+| --------- | ------------------------------ | --------------------------------------------------------- |
+| Helius    | See https://helius.dev/        | High-throughput, feature-rich analytics and RPC services. |
+| QuickNode | See https://www.quicknode.com/ | Simple setup and global endpoints.                        |
+| Triton    | See https://triton.one/        | Enterprise-grade RPC provider.                            |
 
 ### Whitelist Accounts
 
@@ -623,20 +496,11 @@ KORA_GRACE_PERIOD_HOURS=48  # Wait 48 hours instead of 24
 
 ### Common Issues
 
-**"Command not found: make"**
-
-- Install Make using the instructions in Prerequisites
-
-**"Failed to connect to RPC"**
-
-- Check your `SOLANA_RPC_URL` in `.env`
-- Verify network connectivity
-- Try using a different RPC endpoint
-
-**"Invalid private key"**
-
-- Ensure `KORA_PRIVATE_KEY` is a valid base58-encoded key
-- Or verify your `signers.toml` points to a valid keypair file
+| Issue                      | Likely Cause                                     | Fix                                                                                          |
+| -------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `Command not found: make`  | `make` not installed                             | Install `make` (see Prerequisites table) or use WSL on Windows.                              |
+| `Failed to connect to RPC` | `SOLANA_RPC_URL` misconfigured or network issues | Verify `SOLANA_RPC_URL` in `.env`, check network, or try a different RPC provider.           |
+| `Invalid private key`      | Bad format or wrong environment variable         | Ensure `KORA_PRIVATE_KEY` is valid base58 or `signers.toml` references a valid keypair file. |
 
 ---
 
