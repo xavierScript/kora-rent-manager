@@ -320,15 +320,86 @@ docker compose run --rm help
 
 ### Prerequisites Installation
 
-| Component             | Install Command                                                              | Notes                                                                              |
-| --------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------ |
-| Rust                  | <code>curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs              | sh</code><br><code>source $HOME/.cargo/env</code>                                  | Installs `rustc` and `cargo` via `rustup`. |
-| Make (macOS)          | <code>xcode-select --install</code>                                          | Installs developer tools including `make`.                                         |
-| Make (Ubuntu/Debian)  | <code>sudo apt-get update && sudo apt-get install build-essential</code>     | Installs `make` and common build tools.                                            |
-| Make (Fedora/RHEL)    | <code>sudo dnf install make</code>                                           |                                                                                    |
-| Make (Windows)        | <code>Use WSL: https://docs.microsoft.com/en-us/windows/wsl/install</code>   | Recommend running in WSL for full compatibility.                                   |
-| Kora CLI              | <code>cargo install kora-cli</code>                                          | Optional helper CLI for managing Kora nodes.                                       |
-| Solana CLI (optional) | <code>sh -c "$(curl -sSfL https://release.solana.com/stable/install)"</code> | Useful for devnet testing and key management; add the install path to your `PATH`. |
+#### 1. Install Rust
+
+If you don't have Rust installed, install it using `rustup`:
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source $HOME/.cargo/env
+```
+
+Verify installation:
+
+```bash
+rustc --version  # Should show 1.86 or higher
+cargo --version
+```
+
+#### 2. Install Make
+
+**macOS:**
+
+```bash
+xcode-select --install
+```
+
+**Linux (Ubuntu/Debian):**
+
+```bash
+sudo apt-get update
+sudo apt-get install build-essential
+```
+
+**Linux (Fedora/RHEL):**
+
+```bash
+sudo dnf install make
+```
+
+**Windows:**
+
+- use [WSL](https://docs.microsoft.com/en-us/windows/wsl/install) for a Linux environment
+
+Verify installation:
+
+```bash
+make --version
+```
+
+#### 3. Install Kora CLI
+
+The Kora CLI is required for operating a Kora node. Install directly from crates.io:
+
+```bash
+cargo install kora-cli
+```
+
+Verify installation:
+
+```bash
+kora --version
+```
+
+#### 4. Install Solana CLI (Optional but Recommended)
+
+The Solana CLI is useful for key generation and testing:
+
+```bash
+sh -c "$(curl -sSfL https://release.solana.com/stable/install)"
+```
+
+Add Solana to your PATH (add to `~/.bashrc` or `~/.zshrc`):
+
+```bash
+export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+```
+
+Verify installation:
+
+```bash
+solana --version
+```
 
 ---
 
