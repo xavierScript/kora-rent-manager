@@ -301,7 +301,7 @@ docker compose run --rm help
 
 <a id="getting-started"></a>
 
-## 🚀 Getting Started
+## 🚀 Getting Started (Manually)
 
 <a id="system-requirements"></a>
 
@@ -409,7 +409,7 @@ solana --version
 
 ---
 
-### Installation and Setup
+### Installation and Setup (Manually)
 
 #### Clone the Repository
 
@@ -505,82 +505,16 @@ kora --version
 
 ## 🎮 Usage Guide
 
-We provide a Makefile for easy operation.
+We provide a Makefile for easy operation. Use the commands below to scan, inspect, and manage reclaim cycles.
 
-### 1. 🔍 Scan (Read-Only)
-
-View the state of your accounts without sending transactions. This populates the Dashboard with "Pending", "Reclaimable" or "Funded" statuses.
-
-```bash
-make scan
-```
-
-This command is **safe** and does not modify any accounts. Use it to:
-
-- Audit your current rent allocation
-- Identify accounts ready for reclamation
-- Test your configuration before enabling reclamation
-
-### 2. ⚡ Reclaim (Action)
-
-Execute the cleanup. This will only close accounts that have passed the 24h Grace Period.
-
-```bash
-make reclaim
-```
-
-**⚠️ Warning:** This command will send transactions to the Solana network and close accounts. Ensure you've reviewed the scan results first.
-
-### 3. 🤖 Run Daemon (Background Service)
-
-Run the bot continuously. It will sleep for the specified interval (default 10s) and wake up to process accounts.
-
-```bash
-# Run with default 10s interval
-make run
-
-# Run with custom interval (e.g., 1 hour)
-make run INTERVAL=1h
-
-# Run with 5-minute interval
-make run INTERVAL=5m
-```
-
-### 4. 📜 Stats (Action)
-
-Check for Stats relating to the Node Operator (Your wallet address, in this case)
-
-```bash
-make stats
-```
-
-**Recommended for Production:**
-
-- Start with a longer interval (e.g., `1h`) for safety
-- Monitor the first few cycles manually
-- Gradually decrease interval as you gain confidence
-
-### 5. 📜 Help
-
-Run this command for a quick guide on using the other commands
-
-```bash
-make help
-```
-
-### 6. 📋 View Logs
-
-Check the audit log for all reclamation activity:
-
-```bash
-cat audit_log.csv
-```
-
-Or use tools like `csvkit` for better formatting:
-
-```bash
-csvlook audit_log.csv
-```
+| Action               | Command                                                        | Description                                                                                                                       |
+| -------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **Scan (Read-Only)** | `make scan`                                                    | View the state of your accounts (populates Dashboard with `Pending`, `Reclaimable`, or `Funded`). Safe: no transactions are sent. |
+| **Reclaim (Action)** | `make reclaim`                                                 | Close accounts that have passed the 24h Grace Period. Sends transactions to the network — review `make scan` results first.       |
+| **Run Daemon**       | `make run`<br>`make run INTERVAL=1h`<br>`make run INTERVAL=5m` | Run the bot continuously. Default interval is 10s. Use `INTERVAL` to set custom sleep periods (e.g., `1h`, `5m`).                 |
+| **Stats**            | `make stats`                                                   | Show current efficiency metrics and node/operator statistics.                                                                     |
+| **Help**             | `make help`                                                    | Quick reference for available Makefile targets and usage.                                                                         |
+| **View Logs**        | `cat audit_log.csv`<br>`csvlook audit_log.csv`                 | Inspect the CSV audit log of reclamation activity. Use `csvlook` from `csvkit` for pretty output.                                 |
 
 ---
 
