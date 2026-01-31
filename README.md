@@ -104,6 +104,12 @@ Quick visual tour — images are available in the `screenshots/` folder.
 
 <p align="center"><em>CSV audit log view of reclaimed accounts.</em></p>
 
+<p align="center">
+  <img src="screenshots/help.png" alt="Help Command" />
+</p>
+
+<p align="center"><em>Help command for easier onboarding.</em></p>
+
 ---
 
 ---
@@ -514,7 +520,15 @@ make stats
 - Monitor the first few cycles manually
 - Gradually decrease interval as you gain confidence
 
-### 4. 📋 View Logs
+### 5. 📜 Help
+
+Run this command for a quick guide on using the other commands
+
+```bash
+make help
+```
+
+### 6. 📋 View Logs
 
 Check the audit log for all reclamation activity:
 
