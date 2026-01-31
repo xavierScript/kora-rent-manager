@@ -55,7 +55,7 @@
 ## 📺 Demo & Deep Dive
 
 **▶️ WATCH THE WALKTHROUGH VIDEO HERE**
-_https://www.loom.com/share/021e74ce74b14293808946eb0a58e326_
+[![Watch the video](https://cdn.loom.com/sessions/thumbnails/021e74ce74b14293808946eb0a58e326-with-play.gif)](https://www.loom.com/share/021e74ce74b14293808946eb0a58e326)
 
 ---
 
@@ -307,7 +307,7 @@ docker compose run --rm help
 
 <a id="getting-started"></a>
 
-## 🚀 Getting Started (If you do not want Docker)
+## 🚀 Manual Installation
 
 <a id="system-requirements"></a>
 
