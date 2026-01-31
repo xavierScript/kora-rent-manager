@@ -298,6 +298,11 @@ docker compose run --rm help
 | **View Stats**      | `docker compose run --rm stats`         | Shows current efficiency metrics (Text mode).                                                     |
 | **Setup Zombie**    | `docker compose run --rm setup`         | Creates a test "Zombie" account on Devnet for debugging.                                          |
 
+##### Important to Note
+
+- Your wallet must have sufficient devnet SOL
+- Obtain devnet SOL from the Solana faucet before running the command
+
 ---
 
 <a id="getting-started"></a>
