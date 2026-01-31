@@ -2,6 +2,7 @@
 
 [![Rust](https://img.shields.io/badge/Built_with-Rust-orange?style=flat-square&logo=rust)](https://www.rust-lang.org/)
 [![Solana](https://img.shields.io/badge/Solana-Devnet-green?style=flat-square&logo=solana)](https://solana.com/)
+[![Docker Compose](https://img.shields.io/badge/Docker-Compose-blue?style=flat-square&logo=docker)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
 
 > **Automated Treasury Recovery for Kora Node Operators.**
@@ -25,6 +26,7 @@
   - [Solana Rent Mechanics](#solana-rent-mechanics)
   - [The Reclaim Logic](#the-reclaim-logic)
 - [Getting Started](#getting-started)
+  - [Quick Start with Docker](#getting-started-docker)
   - [System Requirements](#system-requirements)
   - [Prerequisites Installation](#prerequisites-installation)
   - [Installation and Setup](#installation-and-setup)
@@ -127,6 +129,8 @@ Below is a high-level overview of the main file and directory structure for this
 ├── Cargo.toml
 ├── Cargo.lock
 ├── Makefile
+├── docker-compose.yml
+├── Dockerfile
 ├── README.md
 ├── LICENSE.md
 ├── audit_log.csv
@@ -257,6 +261,41 @@ The bot performs the following cycle:
    - _Has it been empty for >24 hours?_ (Mark as "Reclaimable").
 4. **Execution:** If enabled, it constructs a `closeAccount` instruction, signs it with the operator's keypair, and sends it to the network.
 5. **Alerting:** If the total rent reclaimed > 0 or total locked rent > Threshold, it fires a notification.
+
+---
+
+<a id="getting-started-docker"></a>
+
+## 🐳 Quick Start with Docker (Recommended)
+
+Skip the manual installation. Run Kora instantly in a secure, isolated container using Docker Compose.
+
+### 1. Configuration
+
+Ensure you have your configuration files in the root folder:
+
+- `.env` (Environment variables - see `.env.example`)
+- `kora.toml` (App config)
+- `signers.toml` (Signer config)
+
+### 2. Run the Interactive Menu
+
+The easiest way to explore the available commands:
+
+```bash
+docker compose run --rm help
+```
+
+### 3. Docker Command Cheat Sheet
+
+| Action              | Command                                 | Description                                                                                       |
+| ------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| **Start Dashboard** | `docker compose run --rm scan`          | Opens the interactive TUI in your terminal (Read-Only).                                           |
+| **Start Daemon**    | `docker compose run --rm run`           | Runs the monitoring service interactively.<br><br>_(Use `up -d run` for silent background mode)_. |
+| **Reclaim (Safe)**  | `docker compose run --rm reclaim`       | Executes cleanup. Only closes accounts older than 24h.                                            |
+| **Force Reclaim**   | `docker compose run --rm force_reclaim` | **⚠️ Danger:** Ignores grace period. Closes ALL empty accounts immediately.                       |
+| **View Stats**      | `docker compose run --rm stats`         | Shows current efficiency metrics (Text mode).                                                     |
+| **Setup Zombie**    | `docker compose run --rm setup`         | Creates a test "Zombie" account on Devnet for debugging.                                          |
 
 ---
 

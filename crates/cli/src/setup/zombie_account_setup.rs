@@ -115,7 +115,7 @@ async fn main() {
             println!("Created Zero-Balance Account: {} for Mint: {}", ata_pubkey, mint_pubkey);
             println!("---------------------------------------------------");
             println!("Now run:");
-            println!("make scan");
+            println!("make scan or docker compose run --rm scan (if using docker)");
         },
         Err(e) => {
             println!("❌ Failed: {}", e);

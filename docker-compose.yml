@@ -1,0 +1,131 @@
+services:
+  # ----------------------------------------------------------------------------
+  # 1. SCAN (Interactive TUI)
+  # Usage: docker compose run --rm scan
+  # ----------------------------------------------------------------------------
+  scan:
+    image: kora-rent-manager
+    build: .
+    stdin_open: true
+    tty: true
+    env_file: .env
+    volumes:
+      - ./kora.toml:/app/kora.toml
+      - ./signers.toml:/app/signers.toml
+    command: >
+      --rpc-url https://api.devnet.solana.com
+      --config /app/kora.toml 
+      rent-manager scan --all 
+      --signers-config /app/signers.toml
+
+  # ----------------------------------------------------------------------------
+  # 2. RUN (Background Monitor)
+  # Usage: docker compose run --rm run
+  # ----------------------------------------------------------------------------
+  run:
+    image: kora-rent-manager
+    build: .
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./kora.toml:/app/kora.toml
+      - ./signers.toml:/app/signers.toml
+    command: >
+      --rpc-url https://api.devnet.solana.com
+      --config /app/kora.toml 
+      rent-manager run --interval 1h 
+      --signers-config /app/signers.toml
+
+  # ----------------------------------------------------------------------------
+  # 3. RECLAIM (Safe Cleanup)
+  # Usage: docker compose run --rm reclaim
+  # ----------------------------------------------------------------------------
+  reclaim:
+    image: kora-rent-manager
+    build: .
+    env_file: .env
+    volumes:
+      - ./kora.toml:/app/kora.toml
+      - ./signers.toml:/app/signers.toml
+    command: >
+      --rpc-url https://api.devnet.solana.com
+      --config /app/kora.toml 
+      rent-manager reclaim --execute 
+      --signers-config /app/signers.toml
+
+  # ----------------------------------------------------------------------------
+  # 4. FORCE RECLAIM (Immediate Cleanup - DANGER)
+  # Usage: docker compose run --rm force_reclaim
+  # ----------------------------------------------------------------------------
+  force_reclaim:
+    image: kora-rent-manager
+    build: .
+    env_file: .env
+    volumes:
+      - ./kora.toml:/app/kora.toml
+      - ./signers.toml:/app/signers.toml
+    command: >
+      --rpc-url https://api.devnet.solana.com
+      --config /app/kora.toml 
+      rent-manager reclaim --execute --force-all
+      --signers-config /app/signers.toml
+
+  # ----------------------------------------------------------------------------
+  # 5. SETUP (Create Zombie Account)
+  # Usage: docker compose run --rm setup
+  # ----------------------------------------------------------------------------
+  setup:
+    image: kora-rent-manager
+    build: .
+    env_file: .env
+    # We override the entrypoint because we are running a different binary
+    entrypoint: ["zombie_account_setup"]
+    environment:
+      - RPC_URL=https://api.devnet.solana.com
+
+  # ----------------------------------------------------------------------------
+  # 6. STATS (Quick Metrics)
+  # Usage: docker compose run --rm stats
+  # ----------------------------------------------------------------------------
+  stats:
+    image: kora-rent-manager
+    build: .
+    env_file: .env
+    volumes:
+      - ./kora.toml:/app/kora.toml
+      - ./signers.toml:/app/signers.toml
+    command: >
+      --rpc-url https://api.devnet.solana.com
+      --config /app/kora.toml 
+      rent-manager stats 
+      --signers-config /app/signers.toml
+
+  # ----------------------------------------------------------------------------
+  # 7. HELP (Custom Docker Menu)
+  # Usage: docker compose run --rm help
+  # ----------------------------------------------------------------------------
+  help:
+    image: kora-rent-manager
+    build: .
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo ""
+        echo "  🛡️   \033[1;36mKORA RENT MANAGER - DOCKER GUIDE\033[0m"
+        echo "  ============================================================="
+        echo "  Run the following commands to interact with the bot:"
+        echo ""
+        echo "  \033[1;32mCore Commands:\033[0m"
+        echo "  1. Dashboard (Scan):   docker compose run --rm scan"
+        echo "  2. Start Daemon:       docker compose run --rm run"
+        echo "  3. Reclaim (Safe):     docker compose run --rm reclaim"
+        echo "  4. View Stats:         docker compose run --rm stats"
+        echo ""
+        echo "  \033[1;32mTesting & Advanced:\033[0m"
+        echo "  5. Setup Zombie Acct:  docker compose run --rm setup"
+        echo "  6. Force Reclaim:      docker compose run --rm force_reclaim"
+        echo ""
+        echo "  ============================================================="
+        echo ""
