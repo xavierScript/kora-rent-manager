@@ -405,11 +405,33 @@ solana --version
 
 ### Installation and Setup (Manually)
 
-| Step                | Command                                                                                   | Purpose                                                                      |
-| ------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Clone repository    | `git clone https://github.com/xavierScript/kora-rent-manager.git && cd kora-rent-manager` | Get source code and enter project folder.                                    |
-| Build               | `make install`                                                                            | Compile project; binary at `./target/release/kora-rent-manager`.             |
-| Setup devnet zombie | `make setup`                                                                              | Create a test zombie account on devnet (requires devnet SOL in your wallet). |
+#### Clone the Repository
+
+```bash
+git clone https://github.com/xavierScript/kora-rent-manager.git
+cd kora-rent-manager
+```
+
+#### Build the Project
+
+```bash
+make install
+```
+
+The compiled binary will be available at `./target/release/kora-rent-manager`.
+
+#### 🧟‍♂️ Set Up Zombie Accounts (Devnet Testing)
+
+```bash
+make setup
+```
+
+This command creates a test (zombie) account on Solana devnet whose rent is funded by your wallet. It is intended strictly for development and testing purposes.
+
+##### Requirements
+
+- Your wallet must have sufficient devnet SOL
+- Obtain devnet SOL from the Solana faucet before running the command
 
 ---
 
