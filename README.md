@@ -634,4 +634,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
-Built with ❤️ by xavierScript.
+Built with ❤️ by xavierScript for the SuperteamNG Bounty Kora Bounty
